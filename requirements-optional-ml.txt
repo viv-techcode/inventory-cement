@@ -1,0 +1,3 @@
+# Optional non-linear forecasting model. The app continues with valid baselines,
+# Linear Regression and Random Forest when this optional dependency is absent.
+xgboost==3.4.1
