@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+import pandas as pd
 
 from api.dependencies import get_database, get_session
 from api.errors import APIProblem
@@ -19,9 +20,7 @@ from inventory_app.forecasting import (
     ForecastUnavailable,
     assess_demand_source_recency,
     data_hash_for_series,
-    evaluate_model_suite,
-    load_saved_assessment,
-    persist_assessment,
+    load_or_naive_assessment,
 )
 from inventory_app.inventory import local_today
 from inventory_app.models import ForecastArtifact, Material, ProjectSite
@@ -52,7 +51,7 @@ def forecast_sources(
         "site": site.identifier,
         "material": material.name,
         "source_label_if_auto": result["source_label_if_auto"],
-        "policy": "Operational sales is selected only after the stated observed-period minimum; no historical CSV rows are merged into it.",
+        "policy": "Operational sales is selected only after the stated observed-period minimum; the construction dataset is not mixed into it.",
     }
 
 
@@ -80,7 +79,7 @@ def evaluate_forecast(
                 "observed_periods": exc.observed_periods,
                 "required_periods": exc.required_periods,
                 "frequency": exc.frequency,
-                "source_label_if_auto": "Historical CSV",
+                "source_label_if_auto": "Construction Materials Dehradun Dataset",
             },
         ) from exc
 
@@ -93,10 +92,7 @@ def evaluate_forecast(
         "source_label": source_label,
     }
     try:
-        assessment = load_saved_assessment(database, source_frame, **params)
-        if assessment is None:
-            assessment = evaluate_model_suite(source_frame, **params)
-            persist_assessment(database, assessment)
+        assessment = load_or_naive_assessment(database, source_frame, **params)
     except ForecastUnavailable as exc:
         raise APIProblem(422, "forecast_unavailable", str(exc), {"source_label": source_label}) from exc
     except ValueError as exc:
@@ -108,6 +104,11 @@ def evaluate_forecast(
         material=material.name,
         as_of=local_today(),
     )
+    selected = source_frame.loc[
+        (source_frame["project_site_id"] == site.identifier)
+        & (source_frame["material"] == material.name)
+    ].sort_values("date")
+    holdout_start = int(len(selected) * 0.8)
     details = {
         **source_details,
         "requested_source": body.source,
@@ -143,6 +144,7 @@ def forecast_leaderboard(session: Session = Depends(get_session)):
             "model": record.model_name,
             "status": metrics.get("status"),
             "mae": metrics.get("mae"),
+            "selection_mae": metrics.get("selection_mae"),
             "rmse": metrics.get("rmse"),
             "r2": metrics.get("r2"),
             "wape_pct": metrics.get("wape_pct"),
@@ -160,28 +162,31 @@ def forecast_leaderboard(session: Session = Depends(get_session)):
     for site, material in pairs:
         try:
             current_hash = data_hash_for_series(
-                history, site, material, "weekly", source_label="Historical CSV"
+                history, site, material, "weekly", source_label="Construction Materials Dehradun Dataset"
             )
         except ForecastUnavailable:
             continue
         metrics_by_model = stored.get((site, material, current_hash), {})
         eligible = [
             metric for metric in metrics_by_model.values()
-            if metric["status"] == "available" and metric["mae"] is not None
+            if metric["status"] == "available" and metric["selection_mae"] is not None
         ]
         if not eligible:
             continue
-        best = min(eligible, key=lambda metric: (float(metric["mae"]), metric["model"]))
+        best = min(eligible, key=lambda metric: (float(metric["selection_mae"]), metric["model"]))
+        naive = next((metric for metric in eligible if metric["model"] == "Naive"), None)
+        if best["model"] in {"Multiple Linear Regression", "Random Forest", "XGBoost"} and naive and float(best["selection_mae"]) >= float(naive["selection_mae"]):
+            best = naive
         wins[best["model"]] += 1
         items.append({
             "site": site,
             "material": material,
             "best_model": best["model"],
-            "best_mae": float(best["mae"]),
+            "best_mae": float(best["selection_mae"]),
             "unit": str(history.loc[
                 (history.project_site_id == site) & (history.material == material), "unit"
             ].iloc[0]),
-            "metrics": sorted(eligible, key=lambda metric: (float(metric["mae"]), metric["model"])),
+            "metrics": sorted(eligible, key=lambda metric: (float(metric["selection_mae"]), metric["model"])),
             "training_start": best["training_start"],
             "training_end": best["training_end"],
             "evaluation_start": best["evaluation_start"],
@@ -190,7 +195,7 @@ def forecast_leaderboard(session: Session = Depends(get_session)):
 
     return {
         "frequency": "weekly",
-        "source_label": "Historical CSV",
+        "source_label": "Construction Materials Dehradun Dataset",
         "model_version": MODEL_VERSION,
         "pair_count": len(items),
         "stored_metrics_only": True,

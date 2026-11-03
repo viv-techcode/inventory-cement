@@ -1,8 +1,6 @@
 """Historical source inspection and idempotent CSV validation/import routes."""
 from __future__ import annotations
 
-import json
-
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -38,7 +36,7 @@ def data_quality(session: Session = Depends(get_session)):
     operational = session.scalars(select(ImportRun)).all()
     rejected_count = sum(run.rejected_rows for run in operational)
     return {
-        "historical_source_label": "Historical CSV",
+        "historical_source_label": "Construction Materials Dehradun Dataset",
         "operational_transactions_excluded": True,
         "report": report,
         "import_run_count": len(operational),

@@ -22,7 +22,7 @@ def read_settings(session: Session) -> dict[str, Any]:
             values[item.key] = json.loads(item.value_json)
         except json.JSONDecodeError:
             values[item.key] = item.value_json
-    values["safety_stock_policy"] = "mean_daily_demand_times_safety_stock_days"
+    values["safety_stock_policy"] = "service_level_z_times_forecast_error_sigma_sqrt_lead_weeks"
     return values
 
 

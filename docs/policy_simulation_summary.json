@@ -1,0 +1,289 @@
+{
+  "method": "Retrospective chronological holdout replay. Forecast candidate is selected using only pre-holdout rolling-origin MAE. Fixed reorder point uses training-only trailing 52-week mean and one-step-difference sigma. Baseline starting inventory is the train-only one-review-cycle target. No live ledger is modified.",
+  "scenarios": {
+    "holding_rates": [
+      0.15,
+      0.2,
+      0.3
+    ],
+    "shortage_cost_multiples_of_unit_value": [
+      1.5,
+      2.0,
+      3.0
+    ]
+  },
+  "series_count": 60,
+  "simulated_series_count": 60,
+  "summary": [
+    {
+      "policy": "Naive",
+      "holding_rate": 0.15,
+      "shortage_cost_multiple": 1.5,
+      "series_count": 60,
+      "mean_service_level_pct": 91.24455697822792,
+      "mean_stockout_weeks": 5.866666666666666,
+      "mean_orders": 16.433333333333334,
+      "mean_total_cost_inr_per_series": 496179.0250453323
+    },
+    {
+      "policy": "Naive",
+      "holding_rate": 0.15,
+      "shortage_cost_multiple": 2.0,
+      "series_count": 60,
+      "mean_service_level_pct": 91.24455697822792,
+      "mean_stockout_weeks": 5.866666666666666,
+      "mean_orders": 16.433333333333334,
+      "mean_total_cost_inr_per_series": 655486.9712992603
+    },
+    {
+      "policy": "Naive",
+      "holding_rate": 0.15,
+      "shortage_cost_multiple": 3.0,
+      "series_count": 60,
+      "mean_service_level_pct": 91.24455697822792,
+      "mean_stockout_weeks": 5.866666666666666,
+      "mean_orders": 16.433333333333334,
+      "mean_total_cost_inr_per_series": 974102.8638071158
+    },
+    {
+      "policy": "Naive",
+      "holding_rate": 0.2,
+      "shortage_cost_multiple": 1.5,
+      "series_count": 60,
+      "mean_service_level_pct": 91.24455697822792,
+      "mean_stockout_weeks": 5.866666666666666,
+      "mean_orders": 16.433333333333334,
+      "mean_total_cost_inr_per_series": 497199.6426954043
+    },
+    {
+      "policy": "Naive",
+      "holding_rate": 0.2,
+      "shortage_cost_multiple": 2.0,
+      "series_count": 60,
+      "mean_service_level_pct": 91.24455697822792,
+      "mean_stockout_weeks": 5.866666666666666,
+      "mean_orders": 16.433333333333334,
+      "mean_total_cost_inr_per_series": 656507.588949332
+    },
+    {
+      "policy": "Naive",
+      "holding_rate": 0.2,
+      "shortage_cost_multiple": 3.0,
+      "series_count": 60,
+      "mean_service_level_pct": 91.24455697822792,
+      "mean_stockout_weeks": 5.866666666666666,
+      "mean_orders": 16.433333333333334,
+      "mean_total_cost_inr_per_series": 975123.4814571876
+    },
+    {
+      "policy": "Naive",
+      "holding_rate": 0.3,
+      "shortage_cost_multiple": 1.5,
+      "series_count": 60,
+      "mean_service_level_pct": 91.24455697822792,
+      "mean_stockout_weeks": 5.866666666666666,
+      "mean_orders": 16.433333333333334,
+      "mean_total_cost_inr_per_series": 499240.8779955482
+    },
+    {
+      "policy": "Naive",
+      "holding_rate": 0.3,
+      "shortage_cost_multiple": 2.0,
+      "series_count": 60,
+      "mean_service_level_pct": 91.24455697822792,
+      "mean_stockout_weeks": 5.866666666666666,
+      "mean_orders": 16.433333333333334,
+      "mean_total_cost_inr_per_series": 658548.824249476
+    },
+    {
+      "policy": "Naive",
+      "holding_rate": 0.3,
+      "shortage_cost_multiple": 3.0,
+      "series_count": 60,
+      "mean_service_level_pct": 91.24455697822792,
+      "mean_stockout_weeks": 5.866666666666666,
+      "mean_orders": 16.433333333333334,
+      "mean_total_cost_inr_per_series": 977164.7167573313
+    },
+    {
+      "policy": "fixed_reorder_point",
+      "holding_rate": 0.15,
+      "shortage_cost_multiple": 1.5,
+      "series_count": 60,
+      "mean_service_level_pct": 92.83062212430245,
+      "mean_stockout_weeks": 4.216666666666667,
+      "mean_orders": 14.133333333333333,
+      "mean_total_cost_inr_per_series": 479225.3904900848
+    },
+    {
+      "policy": "fixed_reorder_point",
+      "holding_rate": 0.15,
+      "shortage_cost_multiple": 2.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.83062212430245,
+      "mean_stockout_weeks": 4.216666666666667,
+      "mean_orders": 14.133333333333333,
+      "mean_total_cost_inr_per_series": 633017.4050599711
+    },
+    {
+      "policy": "fixed_reorder_point",
+      "holding_rate": 0.15,
+      "shortage_cost_multiple": 3.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.83062212430245,
+      "mean_stockout_weeks": 4.216666666666667,
+      "mean_orders": 14.133333333333333,
+      "mean_total_cost_inr_per_series": 940601.4341997438
+    },
+    {
+      "policy": "fixed_reorder_point",
+      "holding_rate": 0.2,
+      "shortage_cost_multiple": 1.5,
+      "series_count": 60,
+      "mean_service_level_pct": 92.83062212430245,
+      "mean_stockout_weeks": 4.216666666666667,
+      "mean_orders": 14.133333333333333,
+      "mean_total_cost_inr_per_series": 480595.7283057822
+    },
+    {
+      "policy": "fixed_reorder_point",
+      "holding_rate": 0.2,
+      "shortage_cost_multiple": 2.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.83062212430245,
+      "mean_stockout_weeks": 4.216666666666667,
+      "mean_orders": 14.133333333333333,
+      "mean_total_cost_inr_per_series": 634387.7428756686
+    },
+    {
+      "policy": "fixed_reorder_point",
+      "holding_rate": 0.2,
+      "shortage_cost_multiple": 3.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.83062212430245,
+      "mean_stockout_weeks": 4.216666666666667,
+      "mean_orders": 14.133333333333333,
+      "mean_total_cost_inr_per_series": 941971.7720154413
+    },
+    {
+      "policy": "fixed_reorder_point",
+      "holding_rate": 0.3,
+      "shortage_cost_multiple": 1.5,
+      "series_count": 60,
+      "mean_service_level_pct": 92.83062212430245,
+      "mean_stockout_weeks": 4.216666666666667,
+      "mean_orders": 14.133333333333333,
+      "mean_total_cost_inr_per_series": 483336.403937177
+    },
+    {
+      "policy": "fixed_reorder_point",
+      "holding_rate": 0.3,
+      "shortage_cost_multiple": 2.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.83062212430245,
+      "mean_stockout_weeks": 4.216666666666667,
+      "mean_orders": 14.133333333333333,
+      "mean_total_cost_inr_per_series": 637128.4185070635
+    },
+    {
+      "policy": "fixed_reorder_point",
+      "holding_rate": 0.3,
+      "shortage_cost_multiple": 3.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.83062212430245,
+      "mean_stockout_weeks": 4.216666666666667,
+      "mean_orders": 14.133333333333333,
+      "mean_total_cost_inr_per_series": 944712.4476468363
+    },
+    {
+      "policy": "selected_model",
+      "holding_rate": 0.15,
+      "shortage_cost_multiple": 1.5,
+      "series_count": 60,
+      "mean_service_level_pct": 92.58624296745607,
+      "mean_stockout_weeks": 4.866666666666666,
+      "mean_orders": 15.866666666666667,
+      "mean_total_cost_inr_per_series": 444974.67309637874
+    },
+    {
+      "policy": "selected_model",
+      "holding_rate": 0.15,
+      "shortage_cost_multiple": 2.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.58624296745607,
+      "mean_stockout_weeks": 4.866666666666666,
+      "mean_orders": 15.866666666666667,
+      "mean_total_cost_inr_per_series": 587209.0477318355
+    },
+    {
+      "policy": "selected_model",
+      "holding_rate": 0.15,
+      "shortage_cost_multiple": 3.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.58624296745607,
+      "mean_stockout_weeks": 4.866666666666666,
+      "mean_orders": 15.866666666666667,
+      "mean_total_cost_inr_per_series": 871677.7970027488
+    },
+    {
+      "policy": "selected_model",
+      "holding_rate": 0.2,
+      "shortage_cost_multiple": 1.5,
+      "series_count": 60,
+      "mean_service_level_pct": 92.58624296745607,
+      "mean_stockout_weeks": 4.866666666666666,
+      "mean_orders": 15.866666666666667,
+      "mean_total_cost_inr_per_series": 446146.02282638184
+    },
+    {
+      "policy": "selected_model",
+      "holding_rate": 0.2,
+      "shortage_cost_multiple": 2.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.58624296745607,
+      "mean_stockout_weeks": 4.866666666666666,
+      "mean_orders": 15.866666666666667,
+      "mean_total_cost_inr_per_series": 588380.3974618386
+    },
+    {
+      "policy": "selected_model",
+      "holding_rate": 0.2,
+      "shortage_cost_multiple": 3.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.58624296745607,
+      "mean_stockout_weeks": 4.866666666666666,
+      "mean_orders": 15.866666666666667,
+      "mean_total_cost_inr_per_series": 872849.1467327517
+    },
+    {
+      "policy": "selected_model",
+      "holding_rate": 0.3,
+      "shortage_cost_multiple": 1.5,
+      "series_count": 60,
+      "mean_service_level_pct": 92.58624296745607,
+      "mean_stockout_weeks": 4.866666666666666,
+      "mean_orders": 15.866666666666667,
+      "mean_total_cost_inr_per_series": 448488.7222863879
+    },
+    {
+      "policy": "selected_model",
+      "holding_rate": 0.3,
+      "shortage_cost_multiple": 2.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.58624296745607,
+      "mean_stockout_weeks": 4.866666666666666,
+      "mean_orders": 15.866666666666667,
+      "mean_total_cost_inr_per_series": 590723.0969218445
+    },
+    {
+      "policy": "selected_model",
+      "holding_rate": 0.3,
+      "shortage_cost_multiple": 3.0,
+      "series_count": 60,
+      "mean_service_level_pct": 92.58624296745607,
+      "mean_stockout_weeks": 4.866666666666666,
+      "mean_orders": 15.866666666666667,
+      "mean_total_cost_inr_per_series": 875191.8461927575
+    }
+  ]
+}

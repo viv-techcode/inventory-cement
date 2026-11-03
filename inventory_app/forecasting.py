@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -19,14 +18,15 @@ from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from inventory_app.config import PROJECT_ROOT, get_artifacts_dir
+from inventory_app.config import get_artifacts_dir
 from inventory_app.database import Database
 from inventory_app.models import ForecastArtifact, Material, ProjectSite, utc_now
+from inventory_app.pooled_forecasting import build_pooled_frame as pooled_feature_frame, inverse_target_transform
 
-MODEL_VERSION = "1.2"
+MODEL_VERSION = "1.4"
 FEATURE_CONFIG = {"lags": [1, 2, 3, 4], "rolling_window": 4, "features_use_past_only": True}
+POOLED_MODEL_VERSION = "2.0-global"
 BASE_MODELS = ("Naive", "Seasonal Naive", "Multiple Linear Regression", "Random Forest")
 # The supplied series are observed about every 6–7 days; allow at most one
 # expected weekly interval before current lead-time demand is considered stale.
@@ -130,7 +130,7 @@ def prepare_series(
     material: str,
     frequency: str,
     *,
-    source_label: str = "Historical CSV",
+    source_label: str = "Construction Materials Dehradun Dataset",
 ) -> PreparedSeries:
     """Aggregate observations to calendar weeks/months, preserving missing periods as NaN."""
     if frequency not in {"weekly", "monthly"}:
@@ -321,7 +321,13 @@ def _chronological_split(series: PreparedSeries) -> tuple[int, int]:
     return split, n
 
 
-def _calculate_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict[str, float | int | None]:
+def _calculate_metrics(
+    actual: np.ndarray,
+    predicted: np.ndarray,
+    *,
+    training_values: np.ndarray | None = None,
+    seasonal_period: int = 1,
+) -> dict[str, float | int | None]:
     mask = np.isfinite(actual) & np.isfinite(predicted)
     y_true = actual[mask]
     y_pred = predicted[mask]
@@ -333,7 +339,56 @@ def _calculate_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict[str, f
     r2 = float(r2_score(y_true, y_pred)) if len(y_true) >= 2 and float(np.var(y_true)) > 1e-12 else None
     denominator = float(np.abs(y_true).sum())
     wape = float(np.abs(errors).sum() / denominator * 100) if denominator > 1e-12 else None
-    return {"mae": mae, "rmse": rmse, "r2": r2, "wape_pct": wape, "evaluation_observations": int(len(y_true))}
+    mase = None
+    if training_values is not None and len(training_values) > seasonal_period > 0:
+        past = np.asarray(training_values, dtype=float)
+        naive_differences = np.abs(past[seasonal_period:] - past[:-seasonal_period])
+        naive_differences = naive_differences[np.isfinite(naive_differences)]
+        scale = float(np.mean(naive_differences)) if len(naive_differences) else 0.0
+        if scale > 1e-12:
+            mase = mae / scale
+    return {"mae": mae, "rmse": rmse, "r2": r2, "wape_pct": wape, "mase": mase, "evaluation_observations": int(len(y_true))}
+
+
+def _rolling_backtest_errors(name: str, values: np.ndarray, season: int) -> list[float]:
+    """Collect absolute errors from three expanding origins before the final holdout."""
+    n = len(values)
+    first_origin = max(18, int(math.floor(n * 0.55)))
+    final_origin = max(first_origin + 3, int(math.floor(n * 0.80)))
+    origins = np.linspace(first_origin, final_origin, num=4, dtype=int)[:-1]
+    errors: list[float] = []
+    for origin, next_origin in zip(origins, [*origins[1:], final_origin]):
+        if next_origin <= origin:
+            continue
+        train = values[:origin]
+        try:
+            estimator = _fit_full_estimator(name, train)
+            predicted = _recursive_predict(name, train, estimator, next_origin - origin, season)
+            actual = values[origin:next_origin]
+            mask = np.isfinite(actual) & np.isfinite(predicted)
+            errors.extend(np.abs(predicted[mask] - actual[mask]).tolist())
+        except Exception:
+            continue
+    if not errors:
+        raise ForecastUnavailable("No usable rolling-origin backtest windows were available.")
+    return errors
+
+
+def _rolling_backtest_mae(name: str, values: np.ndarray, season: int) -> float:
+    """Mean absolute error across the same pre-holdout rolling origins."""
+    return float(np.mean(_rolling_backtest_errors(name, values, season)))
+
+
+def _select_best_model(metrics: list[dict[str, Any]]) -> tuple[str, str | None]:
+    eligible = [row for row in metrics if row["status"] == "available" and row.get("selection_mae") is not None]
+    if not eligible:
+        raise ForecastUnavailable("No model has a usable rolling-origin selection score.")
+    best = min(eligible, key=lambda row: (row["selection_mae"], row["model"]))
+    naive = next((row for row in eligible if row["model"] == "Naive"), None)
+    ml_names = {"Multiple Linear Regression", "Random Forest", "XGBoost", "Pooled MLR", "Pooled Random Forest", "Pooled XGBoost"}
+    if best["model"] in ml_names and naive and best["selection_mae"] >= naive["selection_mae"]:
+        return "Naive", "ML did not beat Naive on the pre-holdout rolling-origin MAE; Naive selected for this series."
+    return best["model"], None
 
 
 def forecast_periods_for_horizon(horizon_days: int, frequency: str) -> int:
@@ -360,9 +415,9 @@ def evaluate_model_suite(
     frequency: str,
     horizon_days: int = 30,
     model_names: list[str] | None = None,
-    source_label: str = "Historical CSV",
+    source_label: str = "Construction Materials Dehradun Dataset",
 ) -> dict[str, Any]:
-    """Evaluate baselines and fitted models on a fixed-origin chronological holdout."""
+    """Select by pre-holdout rolling-origin MAE; score separately on the final holdout."""
     series = prepare_series(history, site, material, frequency, source_label=source_label)
     split, _ = _chronological_split(series)
     values = series.values
@@ -370,9 +425,17 @@ def evaluate_model_suite(
     actual_test = values[split:]
     season = 52 if frequency == "weekly" else 12
     total_horizon = forecast_periods_for_horizon(horizon_days, frequency)
-    names, optional_note = available_models()
-    if model_names is not None:
-        names = [name for name in model_names if name in names]
+    if model_names is None:
+        names, optional_note = available_models()
+    else:
+        names = list(dict.fromkeys(name for name in model_names if name in {*BASE_MODELS, "XGBoost"}))
+        optional_note = None
+        if "XGBoost" in names:
+            try:
+                import xgboost  # noqa: F401
+            except Exception as exc:
+                names.remove("XGBoost")
+                optional_note = f"XGBoost is unavailable ({type(exc).__name__}); the remaining requested models are used."
     if optional_note:
         series.warnings.append(optional_note)
 
@@ -390,7 +453,8 @@ def evaluate_model_suite(
                 raise ForecastUnavailable(failure)
             estimator = _fit_full_estimator(name, train_values)
             holdout = _recursive_predict(name, train_values, estimator, len(actual_test), season)
-            evaluated = _calculate_metrics(actual_test, holdout)
+            evaluated = _calculate_metrics(actual_test, holdout, training_values=train_values, seasonal_period=season)
+            selection_mae = _rolling_backtest_mae(name, values[:split], season)
             if name in {"Multiple Linear Regression", "Random Forest", "XGBoost"}:
                 final_estimator = _fit_full_estimator(name, values)
             else:
@@ -406,6 +470,7 @@ def evaluate_model_suite(
                     "model": name,
                     "status": "available",
                     **evaluated,
+                    "selection_mae": selection_mae,
                     "training_observations": int(np.isfinite(train_values).sum()),
                     "test_start": series.dates[split].date().isoformat(),
                     "test_end": series.dates[-1].date().isoformat(),
@@ -435,6 +500,7 @@ def evaluate_model_suite(
                     "rmse": None,
                     "r2": None,
                     "wape_pct": None,
+                    "selection_mae": None,
                     "evaluation_observations": int(np.isfinite(actual_test).sum()),
                     "training_observations": int(np.isfinite(train_values).sum()),
                     "test_start": series.dates[split].date().isoformat(),
@@ -447,7 +513,27 @@ def evaluate_model_suite(
     successful = [row for row in metrics if row["status"] == "available"]
     if not successful:
         raise ForecastUnavailable("No forecasting algorithm could be evaluated. " + " | ".join(row["message"] for row in metrics))
-    best = min(successful, key=lambda row: row["mae"])
+    best_model, fallback_note = _select_best_model(metrics)
+    if fallback_note:
+        series.warnings.append(fallback_note)
+    calibration_errors = _rolling_backtest_errors(best_model, values[:split], season)
+    interval_radius = float(np.quantile(calibration_errors, 0.90, method="higher"))
+    error_sigma = float(np.sqrt(np.mean(np.square(calibration_errors))))
+    selected_metric = next(row for row in metrics if row["model"] == best_model)
+    selected_metric["interval_radius"] = interval_radius
+    selected_metric["forecast_error_sigma"] = error_sigma
+    selected_forecast = future_frames[best_model]
+    selected_forecast["lower"] = (selected_forecast["forecast"] - interval_radius).clip(lower=0)
+    selected_forecast["upper"] = selected_forecast["forecast"] + interval_radius
+    selected_holdout = holdout_frames[best_model]
+    holdout_valid = selected_holdout["actual"].notna() & selected_holdout["predicted"].notna()
+    observed_holdout = selected_holdout.loc[holdout_valid]
+    covered = (
+        (observed_holdout["actual"] >= (observed_holdout["predicted"] - interval_radius).clip(lower=0))
+        & (observed_holdout["actual"] <= observed_holdout["predicted"] + interval_radius)
+    )
+    interval_coverage_pct = float(covered.mean() * 100.0) if len(covered) else None
+    selected_metric["prediction_interval_coverage_pct"] = interval_coverage_pct
     return {
         "site": site,
         "material": material,
@@ -467,7 +553,13 @@ def evaluate_model_suite(
         "seasonal_period": season,
         "warnings": list(dict.fromkeys(series.warnings)),
         "metrics": metrics,
-        "best_model": best["model"],
+        "best_model": best_model,
+        "prediction_interval": {
+            "level_pct": 90,
+            "radius": interval_radius,
+            "calibration": "pre-holdout rolling-origin absolute errors",
+            "holdout_coverage_pct": interval_coverage_pct,
+        },
         "forecasts": future_frames,
         "holdout_predictions": holdout_frames,
         "payloads": payloads,
@@ -515,9 +607,14 @@ def persist_assessment(db: Database, assessment: dict[str, Any], *, artifacts_di
             details = {
                 "status": metric["status"],
                 "mae": metric["mae"],
+                "selection_mae": metric.get("selection_mae"),
                 "rmse": metric["rmse"],
                 "r2": metric["r2"],
                 "wape_pct": metric["wape_pct"],
+                "mase": metric.get("mase"),
+                "interval_radius": metric.get("interval_radius"),
+                "forecast_error_sigma": metric.get("forecast_error_sigma"),
+                "prediction_interval_coverage_pct": metric.get("prediction_interval_coverage_pct"),
                 "message": metric["message"],
             }
             if artifact is None:
@@ -557,14 +654,14 @@ def load_saved_assessment(
     material: str,
     frequency: str,
     horizon_days: int,
-    source_label: str = "Historical CSV",
+    source_label: str = "Construction Materials Dehradun Dataset",
 ) -> dict[str, Any] | None:
     """Load a compatible model suite after restart without retraining."""
     try:
         series = prepare_series(history, site, material, frequency, source_label=source_label)
     except ForecastUnavailable:
         return None
-    names, optional_note = available_models()
+    optional_note = None
     with db.session() as session:
         records = session.scalars(
             select(ForecastArtifact).where(
@@ -576,7 +673,8 @@ def load_saved_assessment(
             )
         ).all()
     by_name = {record.model_name: record for record in records}
-    if not all(name in by_name for name in names):
+    names = [name for name in (*BASE_MODELS, "XGBoost") if name in by_name]
+    if not all(name in by_name for name in BASE_MODELS):
         return None
     steps = forecast_periods_for_horizon(horizon_days, frequency)
     metrics: list[dict[str, Any]] = []
@@ -587,13 +685,20 @@ def load_saved_assessment(
         record = by_name[name]
         meta = json.loads(record.metrics_json or "{}")
         status = meta.get("status", "unavailable")
+        if status == "available" and (meta.get("selection_mae") is None or meta.get("mase") is None):
+            return None
         row = {
             "model": name,
             "status": status,
             "mae": meta.get("mae"),
+            "selection_mae": meta.get("selection_mae"),
             "rmse": meta.get("rmse"),
             "r2": meta.get("r2"),
             "wape_pct": meta.get("wape_pct"),
+            "mase": meta.get("mase"),
+            "interval_radius": meta.get("interval_radius"),
+            "forecast_error_sigma": meta.get("forecast_error_sigma"),
+            "prediction_interval_coverage_pct": meta.get("prediction_interval_coverage_pct"),
             "evaluation_observations": record.evaluation_observations,
             "training_observations": record.training_observations,
             "test_start": record.evaluation_start.date().isoformat() if record.evaluation_start else None,
@@ -623,9 +728,17 @@ def load_saved_assessment(
     successful = [row for row in metrics if row["status"] == "available"]
     if not successful or any(row["model"] not in forecasts for row in successful):
         return None
-    best = min(successful, key=lambda row: row["mae"])
+    best_model, fallback_note = _select_best_model(metrics)
     if optional_note:
         series.warnings.append(optional_note)
+    if fallback_note:
+        series.warnings.append(fallback_note)
+    selected_metric = next(row for row in metrics if row["model"] == best_model)
+    interval_radius = selected_metric.get("interval_radius")
+    if interval_radius is None:
+        return None
+    forecasts[best_model]["lower"] = (forecasts[best_model]["forecast"] - float(interval_radius)).clip(lower=0)
+    forecasts[best_model]["upper"] = forecasts[best_model]["forecast"] + float(interval_radius)
     return {
         "site": site,
         "material": material,
@@ -633,6 +746,12 @@ def load_saved_assessment(
         "frequency": frequency,
         "source_label": series.source_label,
         "horizon_days": horizon_days,
+        "prediction_interval": {
+            "level_pct": 90,
+            "radius": float(interval_radius),
+            "calibration": "pre-holdout rolling-origin absolute errors",
+            "holdout_coverage_pct": selected_metric.get("prediction_interval_coverage_pct"),
+        },
         "horizon_periods": steps,
         "data_hash": series.data_hash,
         "source_observations": series.source_observations,
@@ -645,7 +764,7 @@ def load_saved_assessment(
         "seasonal_period": 52 if frequency == "weekly" else 12,
         "warnings": list(dict.fromkeys(series.warnings)),
         "metrics": metrics,
-        "best_model": best["model"],
+        "best_model": best_model,
         "forecasts": forecasts,
         "holdout_predictions": holdout_frames,
         "payloads": payloads,
@@ -660,6 +779,47 @@ def data_hash_for_series(
     material: str,
     frequency: str,
     *,
-    source_label: str = "Historical CSV",
+    source_label: str = "Construction Materials Dehradun Dataset",
 ) -> str:
     return prepare_series(history, site, material, frequency, source_label=source_label).data_hash
+
+
+def load_or_naive_assessment(
+    db: Database,
+    history: pd.DataFrame,
+    *,
+    site: str,
+    material: str,
+    frequency: str,
+    horizon_days: int,
+    source_label: str = "Construction Materials Dehradun Dataset",
+) -> dict[str, Any]:
+    """Load an offline-trained suite or produce a lightweight Naive fallback.
+
+    Request handlers must not fit the tree or regression models. Those candidates
+    are trained by ``scripts.train_all`` and loaded from persisted artifacts.
+    """
+    saved = load_saved_assessment(
+        db,
+        history,
+        site=site,
+        material=material,
+        frequency=frequency,
+        horizon_days=horizon_days,
+        source_label=source_label,
+    )
+    if saved is not None:
+        return saved
+    assessment = evaluate_model_suite(
+        history,
+        site=site,
+        material=material,
+        frequency=frequency,
+        horizon_days=horizon_days,
+        model_names=["Naive"],
+        source_label=source_label,
+    )
+    assessment["warnings"] = list(assessment["warnings"]) + [
+        "No compatible offline-trained model suite is available; the Naive baseline is used. Run python -m scripts.train_all to train candidate models."
+    ]
+    return assessment

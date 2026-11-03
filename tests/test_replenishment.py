@@ -147,3 +147,18 @@ def test_replenishment_review_persists_without_creating_a_purchase_order(seeded_
         assert session.scalar(select(func.count(PurchaseOrder.id))) == 0
     with db.session() as session:
         assert session.scalar(select(func.count(ReplenishmentReview.id))) == 1
+
+
+def test_recommendation_rounds_up_to_inventory_precision():
+    recommendation = calculate_replenishment(
+        unit="kg",
+        current_stock=0,
+        current_stock_basis="operational ledger",
+        lead_time_days=7,
+        safety_stock_days=0,
+        historical_daily_rate=0,
+        forecast_values=[Decimal("1.00001")],
+        forecast_step_days=7,
+        as_of=date(2026, 1, 1),
+    )
+    assert recommendation["recommended_order_qty"] == Decimal("1.0001")

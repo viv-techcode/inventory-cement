@@ -18,6 +18,7 @@ from inventory_app.forecasting import (
     persist_assessment,
     prepare_series,
 )
+from inventory_app.pooled_forecasting import build_pooled_frame, inverse_target_transform
 
 
 def _history(db):
@@ -25,6 +26,7 @@ def _history(db):
         return history_to_frame(session)
 
 
+@pytest.mark.slow
 def test_weekly_evaluation_is_chronological_and_has_baselines(seeded_db):
     db, _ = seeded_db
     history = _history(db)
@@ -34,8 +36,8 @@ def test_weekly_evaluation_is_chronological_and_has_baselines(seeded_db):
     holdout = result["holdout_predictions"]["Multiple Linear Regression"]
     assert {"date", "actual", "predicted"}.issubset(holdout.columns)
     assert holdout["actual"].notna().sum() >= 3
-    assert result["calendar_periods"] == 105
-    assert result["source_observations"] == 105
+    assert result["calendar_periods"] == 149
+    assert result["source_observations"] == 149
     assert result["evaluation_start"] > result["training_start"]
     for row in result["metrics"]:
         if row["status"] == "available":
@@ -43,6 +45,11 @@ def test_weekly_evaluation_is_chronological_and_has_baselines(seeded_db):
             assert row["evaluation_observations"] > 0
             assert row["mae"] >= 0 and row["rmse"] >= 0
     assert len(result["forecasts"]["Naive"]) == 5
+    chosen = result["forecasts"][result["best_model"]]
+    assert {"lower", "upper"}.issubset(chosen.columns)
+    assert (chosen["lower"] <= chosen["forecast"]).all()
+    assert (chosen["upper"] >= chosen["forecast"]).all()
+    assert result["prediction_interval"]["level_pct"] == 90
     assert result["forecasts"]["Naive"].iloc[0]["date"].strftime("%Y-%m-%d") == "2026-01-05"
 
 
@@ -90,6 +97,45 @@ def test_past_only_feature_and_zero_safe_metrics():
     assert metrics["r2"] is None
 
 
+def test_pooled_features_use_only_observations_before_target():
+    dates = pd.date_range("2025-01-05", periods=9, freq="W-SUN")
+    history = pd.DataFrame({"date": dates[:8], "project_site_id": "Site A", "material": "Cement", "consumption_qty": np.arange(1., 9.),
+                            "project_type": "Residential", "project_phase": "Foundation", "unit_price_inr": 100., "supplier_lead_time_days": 7})
+    before, _, keys = build_pooled_frame(history)
+    changed = history.copy()
+    changed.loc[7, "consumption_qty"] = 99999
+    after, _, _ = build_pooled_frame(changed)
+
+    # Four initial observations are skipped to form lag 1–4. The final feature
+    # row predicts the last observation, so changing that target cannot change
+    # its own past-only inputs.
+    target_key = keys[-1]
+    assert target_key[:2] == ("Site A", "Cement")
+    assert isinstance(target_key[2], pd.Timestamp)
+    pd.testing.assert_series_equal(before.iloc[-1], after.iloc[-1])
+
+    # A future target after the changed observation must see it as lag 1.
+    later = pd.DataFrame({"date": [dates[8]], "project_site_id": ["Site A"], "material": ["Cement"],
+                          "consumption_qty": [9.], "project_type": ["Residential"], "project_phase": ["Foundation"],
+                          "unit_price_inr": [100.], "supplier_lead_time_days": [7]})
+    later_before, _, later_keys = build_pooled_frame(pd.concat([history, later], ignore_index=True))
+    later_after, _, _ = build_pooled_frame(pd.concat([changed, later], ignore_index=True))
+    assert later_keys[-1][2] > target_key[2]
+    assert not np.array_equal(later_before.iloc[-1].to_numpy(), later_after.iloc[-1].to_numpy())
+
+
+def test_pooled_inverse_target_transforms():
+    np.testing.assert_allclose(inverse_target_transform(np.log1p([0., 12.]), "log1p"), [0., 12.])
+    np.testing.assert_allclose(inverse_target_transform([1., 2.], "series_mean", scale=25.), [25., 50.])
+
+
+def test_pooled_selection_falls_back_to_naive():
+    from inventory_app.forecasting import _select_best_model
+    metrics = [{"model": "Naive", "status": "available", "selection_mae": 3.},
+               {"model": "Pooled Random Forest", "status": "available", "selection_mae": 4.}]
+    assert _select_best_model(metrics)[0] == "Naive"
+
+
 def test_monthly_aggregation_and_sparse_series_handling(seeded_db):
     db, _ = seeded_db
     history = _history(db)
@@ -103,6 +149,7 @@ def test_monthly_aggregation_and_sparse_series_handling(seeded_db):
         prepare_series(sparse, "Jakhan, Dehradun", "Cement", "weekly")
 
 
+@pytest.mark.slow
 def test_model_artifact_save_reload_and_invalidation(seeded_db, tmp_path):
     db, _ = seeded_db
     history = _history(db)
@@ -114,6 +161,7 @@ def test_model_artifact_save_reload_and_invalidation(seeded_db, tmp_path):
     assert loaded["cache_hit"] is True
     assert loaded["horizon_days"] == 60
     assert len(loaded["forecasts"][loaded["best_model"]]) == 9
+    assert {"lower", "upper"}.issubset(loaded["forecasts"][loaded["best_model"]].columns)
     assert not loaded["holdout_predictions"][loaded["best_model"]].empty
 
     changed = history.copy()

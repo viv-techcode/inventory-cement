@@ -162,6 +162,7 @@ class ReplenishmentCalculate(InputModel):
     material_id: int = Field(gt=0)
     lead_time_days: int | None = Field(default=None, ge=1, le=365)
     safety_stock_days: int | None = Field(default=None, ge=0, le=90)
+    service_level: float = Field(default=0.95, gt=0, lt=1)
     source: Literal["auto", "historical_csv", "operational_sales"] = "auto"
     incoming_quantity: Decimal | None = Field(default=None, ge=0)
     incoming_date: date | None = None
@@ -174,3 +175,38 @@ class ReplenishmentCalculate(InputModel):
         if self.incoming_date is not None and self.incoming_date < local_today():
             raise ValueError("Scenario incoming date cannot be in the past.")
         return self
+
+
+class SupplierCreate(InputModel):
+    name: str = Field(min_length=1, max_length=160)
+    contact_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    city: str | None = None
+    notes: str | None = None
+
+
+class PurchaseOrderFromRecommendation(InputModel):
+    idempotency_key: str = Field(min_length=1, max_length=120)
+    supplier_id: int = Field(gt=0)
+    site_id: int = Field(gt=0)
+    material_id: int = Field(gt=0)
+    quantity: Decimal = Field(gt=0)
+    unit: str = Field(min_length=1, max_length=40)
+    unit_price_inr: Decimal = Field(default=Decimal("0"), ge=0)
+    expected_delivery_date: date | None = None
+    notes: str | None = None
+
+
+class PurchaseOrderStatusUpdate(InputModel):
+    status: Literal["Pending approval", "Approved", "Cancelled"]
+
+
+class ReceiptCreate(InputModel):
+    idempotency_key: str = Field(min_length=1, max_length=120)
+    receipt_reference: str = Field(min_length=1, max_length=120)
+    purchase_order_line_id: int = Field(gt=0)
+    quantity: Decimal = Field(gt=0)
+    unit: str = Field(min_length=1, max_length=40)
+    receipt_date: date
+    notes: str | None = None

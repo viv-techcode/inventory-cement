@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-import math
 import re
 from statistics import median
 from dataclasses import dataclass
@@ -18,13 +17,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from inventory_app.database import Database
+from inventory_app.levels import add_series_levels
 from inventory_app.models import (
     HistoricalObservation,
     ImportRun,
     Material,
     ProjectSite,
     RejectedRow,
-    utc_now,
 )
 
 EXPECTED_COLUMNS = (
@@ -220,6 +219,22 @@ def validate_frame(
                 kept.append(row)
         valid = kept
 
+    if valid:
+        level_frame = pd.DataFrame.from_records([
+            {
+                "date": row["date"],
+                "project_site_id": row["project_site_id"],
+                "material": row["material"],
+                "consumption_qty": float(row["consumption_qty"]),
+                "unit_price_inr": float(row["unit_price_inr"]),
+            }
+            for row in valid
+        ])
+        level_frame = add_series_levels(level_frame)
+        for position, row in enumerate(valid):
+            row["demand_level"] = str(level_frame.iloc[position]["demand_level"])
+            row["price_level"] = str(level_frame.iloc[position]["price_level"])
+
     summary = {
         "schema_errors": [],
         "total_rows": int(len(frame)),
@@ -309,7 +324,7 @@ def import_dataframe(
     source_tag: str | None = None,
 ) -> ImportResult:
     """Validate then persist a CSV once. History is immutable; conflicts are logged."""
-    observation_tag = source_tag or ("historical_csv" if source_kind == "bundled_primary_dataset" else source_kind)
+    observation_tag = source_tag or source_kind
     if not observation_tag.strip() or len(observation_tag) > 40:
         raise ValueError("source_tag must contain 1–40 characters.")
     fingerprint = sha256_bytes(file_bytes)
@@ -410,9 +425,10 @@ def import_dataframe(
                 opening_stock_qty=row["opening_stock_qty"],
                 incoming_qty=row["incoming_qty"],
                 unit_price_inr=row["unit_price_inr"],
+                demand_level=row["demand_level"],
+                price_level=row["price_level"],
                 supplier_lead_time_days=row["supplier_lead_time_days"],
                 wpi_reference_month=row["wpi_reference_month"],
-                source_tag=observation_tag,
                 raw_json=json.dumps(row["_raw"], ensure_ascii=False, default=str),
             ))
             accepted_count += 1
@@ -468,10 +484,32 @@ def ensure_primary_dataset_import(db: Database, path: str) -> ImportResult | Non
         if prior is not None:
             return ImportResult(prior.id, fingerprint, prior.total_rows, prior.accepted_rows, prior.rejected_rows, prior.duplicate_rows, duplicate_file=True, message="Primary source was previously imported.")
     frame = read_csv_bytes(raw)
+    # Record the canonical file fingerprint when its observations already exist.
+    if len(frame) == 8940:
+        valid, rejected, summary = validate_frame(frame)
+        if not rejected and len(valid) == len(frame) and not summary.get("schema_errors"):
+            incoming_keys = {row["_natural_key"] for row in valid}
+            with db.session() as session:
+                existing_keys = set(session.scalars(select(HistoricalObservation.natural_key)).all())
+                if incoming_keys and incoming_keys == existing_keys:
+                    run = ImportRun(
+                        file_name=source_path.name,
+                        file_hash=fingerprint,
+                        source_kind="construction_materials_dehradun_dataset",
+                        total_rows=len(frame),
+                        accepted_rows=len(frame),
+                        rejected_rows=0,
+                        duplicate_rows=0,
+                        status="completed",
+                        report_json=json.dumps({"reconciled_existing_observations": True}),
+                    )
+                    session.add(run)
+                    session.commit()
+                    return ImportResult(run.id, fingerprint, len(frame), len(frame), 0, 0, message="Dataset matched the observations already stored.")
     return import_dataframe(
         db,
         frame,
         file_name=source_path.name,
         file_bytes=raw,
-        source_kind="bundled_primary_dataset",
+        source_kind="construction_materials_dehradun_dataset",
     )

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING
 from typing import Any
 
 from sqlalchemy import func, select
@@ -139,6 +139,7 @@ def create_purchase_order(
         price = decimal_value(line.get("unit_price_inr"), field="unit price")
         if qty <= 0:
             raise ProcurementError("Ordered quantity must be greater than zero.")
+        qty = qty.quantize(Decimal("0.0001"), rounding=ROUND_CEILING)
         if price < 0:
             raise ProcurementError("Unit price cannot be negative.")
         normalized.append((material, qty, price))

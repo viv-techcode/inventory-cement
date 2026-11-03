@@ -124,9 +124,10 @@ class HistoricalObservation(Base):
     opening_stock_qty: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
     incoming_qty: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
     unit_price_inr: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    demand_level: Mapped[str] = mapped_column(String(10), nullable=False, default="Medium", server_default="Medium")
+    price_level: Mapped[str] = mapped_column(String(10), nullable=False, default="Medium", server_default="Medium")
     supplier_lead_time_days: Mapped[int] = mapped_column(Integer, nullable=False)
     wpi_reference_month: Mapped[str] = mapped_column(String(7), nullable=False)
-    source_tag: Mapped[str] = mapped_column(String(40), default="historical_csv", server_default="historical_csv", nullable=False)
     raw_json: Mapped[str] = mapped_column(Text, nullable=False)
     imported_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
 

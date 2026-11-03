@@ -1,4 +1,4 @@
-"""Explicit, non-mixing policy for historical CSV versus operational sales forecasts."""
+"""Explicit, non-mixing policy for the construction dataset versus operational sales forecasts."""
 from __future__ import annotations
 
 from typing import Literal
@@ -81,7 +81,7 @@ def source_eligibility(
         "observed_operational_sales_periods": observed,
         "minimum_operational_sales_periods": required,
         "operational_sales_eligible": eligible,
-        "source_label_if_auto": "Operational sales" if eligible else "Historical CSV",
+        "source_label_if_auto": "Operational sales" if eligible else "Construction Materials Dehradun Dataset",
         "source_kind_if_auto": "operational_sales" if eligible else "historical_csv",
         "note": (
             f"Operational sales has {observed} observed {frequency} periods; at least {required} are required."
@@ -124,17 +124,17 @@ def resolve_forecast_source(
         reason = (
             f"Uses operational sale quantities only: {eligibility['observed_operational_sales_periods']} "
             f"observed {frequency} periods meets the minimum of {eligibility['minimum_operational_sales_periods']}. "
-            "Historical CSV rows are not mixed into this series."
+            "Historical observations are excluded from this calculation."
         )
     else:
         frame = history_to_frame(session)
-        label = "Historical CSV"
+        label = "Construction Materials Dehradun Dataset"
         if requested_source == "auto" and not eligible:
             reason = (
                 f"Operational sales is not eligible yet: {eligibility['observed_operational_sales_periods']} "
                 f"observed {frequency} periods; {eligibility['minimum_operational_sales_periods']} are required. "
-                "This evaluation uses Historical CSV observations only; the two sources are not mixed."
+                "The evaluation uses historical observations until enough operational sales periods are available."
             )
         else:
-            reason = "This evaluation uses Historical CSV observations only; operational sales are not mixed in."
+            reason = "The evaluation uses historical observations."
     return frame, resolved, label, {**eligibility, "source_reason": reason}

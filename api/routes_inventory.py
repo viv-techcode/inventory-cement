@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from api.dependencies import get_session
 from api.errors import APIProblem
 from api.schemas import InventoryTransactionCreate, ReorderRuleInput
-from api.serializers import as_iso, material_payload, reorder_rule_payload, site_payload
+from api.serializers import as_iso, reorder_rule_payload
 from inventory_app.inventory import (
     DuplicateTransactionError,
     InventoryError,
@@ -57,7 +57,6 @@ def _transaction_payload(txn: InventoryTransaction, site: ProjectSite, material:
         "unit_cost_inr": float(txn.unit_cost_inr) if txn.unit_cost_inr is not None else None,
         "reference": txn.reference,
         "source": txn.source,
-        "source_tag": txn.source_tag,
         "notes": txn.notes,
         "created_at": as_iso(txn.created_at),
     }

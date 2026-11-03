@@ -74,10 +74,9 @@ def inventory_report(session: Session) -> pd.DataFrame:
             "recorded_unit_cost_inr": float(txn.unit_cost_inr) if txn.unit_cost_inr is not None else None,
             "reference": txn.reference,
             "source": txn.source,
-            "source_tag": txn.source_tag,
             "notes": txn.notes,
         })
-    columns = ["transaction_id", "date", "site", "material", "transaction_type", "quantity", "unit", "recorded_unit_cost_inr", "reference", "source", "source_tag", "notes"]
+    columns = ["transaction_id", "date", "site", "material", "transaction_type", "quantity", "unit", "recorded_unit_cost_inr", "reference", "source", "notes"]
     return pd.DataFrame.from_records(records, columns=columns)
 
 

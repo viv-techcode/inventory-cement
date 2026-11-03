@@ -13,7 +13,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import text
+from sqlalchemy import inspect, select, text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.errors import APIProblem
@@ -24,28 +24,76 @@ from api.routes_forecasting import router as forecasting_router
 from api.routes_inventory import router as inventory_router
 from api.routes_replenishment import router as replenishment_router
 from api.routes_reports import router as reports_router
+from api.routes_procurement import router as procurement_router
 from api.routes_sales import router as sales_router
 from inventory_app import config
-from inventory_app.database import Database, initialize_database
+from inventory_app.database import SCHEMA_VERSION, Database, initialize_database
 from inventory_app.ingestion import ensure_primary_dataset_import
+from inventory_app.models import Base, HistoricalObservation, SchemaVersion
 
 logger = logging.getLogger(__name__)
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+REQUIRED_TABLES = set(Base.metadata.tables)
+
+
+def _configure_file_logging() -> None:
+    config.LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    target = (config.LOGS_DIR / "app.log").resolve()
+    if not any(getattr(handler, "baseFilename", None) == str(target) for handler in logger.handlers):
+        handler = logging.FileHandler(target, encoding="utf-8")
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+        logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+
+
+def _self_check(database: Database) -> dict:
+    inspector = inspect(database.engine)
+    tables = set(inspector.get_table_names())
+    missing = sorted(REQUIRED_TABLES - tables)
+    with database.session() as session:
+        version_record = session.get(SchemaVersion, 1)
+        schema_version = version_record.version if version_record else None
+        history_rows = session.scalar(select(HistoricalObservation.id).limit(1))
+        if history_rows is None:
+            observed_rows = 0
+        else:
+            observed_rows = session.query(HistoricalObservation).count()
+    dataset_rows = None
+    if config.SOURCE_CSV.exists():
+        with config.SOURCE_CSV.open("r", encoding="utf-8-sig", newline="") as stream:
+            dataset_rows = max(sum(1 for _ in stream) - 1, 0)
+    return {
+        "schema_version": schema_version,
+        "expected_schema_version": SCHEMA_VERSION,
+        "schema_current": schema_version == SCHEMA_VERSION,
+        "required_tables_present": not missing,
+        "missing_tables": missing,
+        "historical_rows": observed_rows,
+        "dataset_rows": dataset_rows,
+        "dataset_row_count_matches": dataset_rows is not None and observed_rows == dataset_rows,
+    }
 
 
 def create_app(*, database_url: str | None = None, auto_import_source: bool = True) -> FastAPI:
     """Create an app; tests can supply an isolated database and disable bundled import."""
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        _configure_file_logging()
         if database_url is None:
             config.ensure_runtime_directories()
         database = Database(database_url or config.DATABASE_URL)
-        initialize_database(database)
-        if auto_import_source and config.SOURCE_CSV.exists():
-            ensure_primary_dataset_import(database, str(config.SOURCE_CSV))
-        app.state.database = database
         try:
+            initialize_database(database)
+            if auto_import_source and config.SOURCE_CSV.exists():
+                ensure_primary_dataset_import(database, str(config.SOURCE_CSV))
+            app.state.database = database
+            app.state.startup_diagnostics = _self_check(database)
+            logger.info("Startup self-check: %s", app.state.startup_diagnostics)
             yield
+        except Exception:
+            logger.exception("Application startup failed")
+            raise
         finally:
             database.dispose()
 
@@ -64,6 +112,7 @@ def create_app(*, database_url: str | None = None, auto_import_source: bool = Tr
         forecasting_router,
         replenishment_router,
         reports_router,
+        procurement_router,
     ):
         application.include_router(router)
 
@@ -72,7 +121,18 @@ def create_app(*, database_url: str | None = None, auto_import_source: bool = Tr
         database: Database = request.app.state.database
         with database.session() as session:
             session.execute(text("SELECT 1"))
-        return {"status": "ok", "service": "construction-materials-operations"}
+        return {
+            "status": "ok",
+            "service": "construction-materials-operations",
+            "checks": _self_check(database),
+        }
+
+    @application.get("/api/diagnostics", tags=["system"])
+    def diagnostics(request: Request):
+        database: Database = request.app.state.database
+        current = _self_check(database)
+        current["startup"] = request.app.state.startup_diagnostics
+        return current
 
     @application.exception_handler(APIProblem)
     async def api_problem_handler(_request: Request, exc: APIProblem):
@@ -123,7 +183,11 @@ def create_app(*, database_url: str | None = None, auto_import_source: bool = Tr
 
     @application.exception_handler(Exception)
     async def unhandled_error_handler(request: Request, exc: Exception):
-        logger.exception("Unhandled request error at %s", request.url.path, exc_info=exc)
+        logger.error(
+            "Unhandled request error at %s",
+            request.url.path,
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
         return JSONResponse(
             status_code=500,
             content={

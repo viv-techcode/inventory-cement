@@ -1,11 +1,10 @@
-"""Load deterministic, tagged sample transactions reconciled to sample-extension rows.
+"""Load deterministic sample transactions from recent dataset observations.
 
-The sample ledger is intentionally separate from original CSV history. Each site/material
-gets one synthetic opening count, extension-aligned receipts and sales, a 30-account generic
-customer pool, and one reorder rule. Opening and receipt costs are deterministic fractions
-of that week's dataset unit price for sample FIFO valuation.
+The sample ledger is separate from historical observations. Each site/material gets a
+synthetic opening count, receipts and sales, a generic customer pool, and a reorder rule.
+Opening and receipt costs are deterministic fractions of dataset prices for FIFO examples.
 
-Run after ``python -m scripts.extend_dataset``:
+Run after the dataset has been imported:
 
     python -m scripts.load_operations
 """
@@ -23,7 +22,7 @@ from sqlalchemy import func, select
 
 from inventory_app import config
 from inventory_app.database import Database, initialize_database
-from inventory_app.ingestion import EXPECTED_COLUMNS, read_csv_bytes
+from inventory_app.ingestion import EXPECTED_COLUMNS, ensure_primary_dataset_import, read_csv_bytes
 from inventory_app.inventory import get_current_balance, record_inventory_transaction
 from inventory_app.models import (
     Customer,
@@ -36,12 +35,7 @@ from inventory_app.models import (
 )
 from inventory_app.reorder import save_reorder_rule
 from inventory_app.sales import create_customer, create_sale
-from scripts.extend_dataset import (
-    EXTENSION_COLUMNS,
-    SAMPLE_TAG as EXTENSION_TAG,
-    current_week_monday,
-    import_extension,
-)
+SAMPLE_COLUMNS = list(EXPECTED_COLUMNS)
 
 SAMPLE_TAG = "sample_ledger"
 QTY_STEP = Decimal("0.0001")
@@ -82,32 +76,30 @@ def _pair_key(site: str, material: str) -> str:
     return digest
 
 
-def validate_extension_frame(frame: pd.DataFrame) -> pd.DataFrame:
-    missing = [name for name in EXTENSION_COLUMNS if name not in frame.columns]
+def validate_sample_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    missing = [name for name in SAMPLE_COLUMNS if name not in frame.columns]
     if missing:
-        raise ValueError(f"Sample extension is missing fields: {missing}")
-    if frame["source_tag"].astype(str).ne(EXTENSION_TAG).any():
-        raise ValueError("Every extension row must have source_tag=sample_extension.")
-    result = frame.loc[:, EXTENSION_COLUMNS].copy()
+        raise ValueError(f"Dataset rows are missing fields: {missing}")
+    result = frame.loc[:, SAMPLE_COLUMNS].copy()
     result["date"] = pd.to_datetime(result["date"], errors="raise")
     if result.empty:
-        raise ValueError("The sample extension contains no rows.")
+        raise ValueError("The dataset sample contains no rows.")
     if result[["project_site_id", "material", "date"]].duplicated().any():
-        raise ValueError("The sample extension contains duplicate site/material/date rows.")
+        raise ValueError("The dataset sample contains duplicate site/material/date rows.")
     if len(result.groupby(["project_site_id", "material"], dropna=False)) != 60:
         raise ValueError("Expected sample rows for all 60 site/material pairs.")
     for column in ("consumption_qty", "opening_stock_qty", "incoming_qty", "unit_price_inr"):
         values = pd.to_numeric(result[column], errors="coerce")
         if values.isna().any() or not values.map(lambda value: Decimal(str(value)).is_finite()).all():
-            raise ValueError(f"Sample extension has a missing or non-finite {column} value.")
+            raise ValueError(f"Dataset sample has a missing or non-finite {column} value.")
         if (values < 0).any() or (column == "unit_price_inr" and (values <= 0).any()):
-            raise ValueError(f"Sample extension has an invalid negative/zero {column} value.")
+            raise ValueError(f"Dataset sample has an invalid negative/zero {column} value.")
     result = result.sort_values(["project_site_id", "material", "date"], kind="stable").reset_index(drop=True)
     for (site, material), series in result.groupby(["project_site_id", "material"], sort=False):
         series = series.sort_values("date")
         intervals = series["date"].diff().dropna().dt.days
         if len(intervals) and not intervals.eq(7).all():
-            raise ValueError(f"Sample extension is not weekly for {site} / {material}.")
+            raise ValueError(f"Dataset sample is not weekly for {site} / {material}.")
         values = series.to_dict(orient="records")
         previous_close: Decimal | None = None
         for row in values:
@@ -116,9 +108,9 @@ def validate_extension_frame(frame: pd.DataFrame) -> pd.DataFrame:
             consumption = _q(_decimal(row["consumption_qty"], "consumption_qty"))
             closing = _q(opening + incoming - consumption)
             if opening < 0 or incoming < 0 or consumption <= 0 or closing < 0:
-                raise ValueError(f"Invalid stock flow in sample extension for {site} / {material}.")
+                raise ValueError(f"Invalid stock flow in dataset sample for {site} / {material}.")
             if previous_close is not None and abs(opening - previous_close) > QTY_STEP:
-                raise ValueError(f"Extension opening stock does not roll forward for {site} / {material}.")
+                raise ValueError(f"Opening stock does not roll forward for {site} / {material}.")
             previous_close = closing
     return result
 
@@ -230,10 +222,8 @@ def _ensure_customers(session) -> list[Customer]:
 
 def _verify_sample_observations(session, frame: pd.DataFrame) -> None:
     rows = session.scalars(
-        select(HistoricalObservation).where(HistoricalObservation.source_tag == EXTENSION_TAG)
+        select(HistoricalObservation)
     ).all()
-    if len(rows) != len(frame):
-        raise RuntimeError(f"Expected {len(frame)} sample_extension observations in the DB, found {len(rows)}.")
     stored = {
         (row.project_site_id, row.material, row.observation_datetime): row
         for row in rows
@@ -242,15 +232,15 @@ def _verify_sample_observations(session, frame: pd.DataFrame) -> None:
         key = (str(item["project_site_id"]), str(item["material"]), item["date"].to_pydatetime())
         row = stored.get(key)
         if row is None:
-            raise RuntimeError(f"Sample extension row is absent from the DB: {key}.")
+            raise RuntimeError(f"Dataset row is absent from the DB: {key}.")
         for field in ("consumption_qty", "opening_stock_qty", "incoming_qty", "unit_price_inr"):
             if _q(Decimal(getattr(row, field))) != _q(_decimal(item[field], field)):
-                raise RuntimeError(f"Database sample row does not match extension file for {key} ({field}).")
+                raise RuntimeError(f"Stored observation does not match dataset for {key} ({field}).")
 
 
 def load_sample_operations(database: Database, raw_frame: pd.DataFrame) -> dict[str, int | str]:
     """Idempotently add synthetic operations and assert weekly balance reconciliation."""
-    frame = validate_extension_frame(raw_frame)
+    frame = validate_sample_frame(raw_frame)
     inserted_openings = 0
     inserted_receipts = 0
     inserted_sales = 0
@@ -414,19 +404,18 @@ def load_sample_operations(database: Database, raw_frame: pd.DataFrame) -> dict[
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-csv", type=Path, default=config.SOURCE_CSV)
-    parser.add_argument("--extension-csv", type=Path, default=config.SAMPLE_EXTENSION_CSV)
     parser.add_argument("--database-url", default=config.DATABASE_URL)
     args = parser.parse_args(argv)
-    if not args.extension_csv.exists():
-        print(f"Sample extension not found: {args.extension_csv}; run scripts.extend_dataset first.", file=sys.stderr)
+    if not args.source_csv.exists():
+        print(f"Dataset not found: {args.source_csv}.", file=sys.stderr)
         return 2
     try:
-        imported = import_extension(args.database_url, args.source_csv, args.extension_csv)
-        print(f"Verified source rows: {imported}", flush=True)
-        frame = read_csv_bytes(args.extension_csv.read_bytes())
+        frame = read_csv_bytes(args.source_csv.read_bytes())
+        frame = frame.sort_values(["project_site_id", "material", "date"], kind="stable").groupby(["project_site_id", "material"], sort=False).tail(30).copy()
         database = Database(args.database_url)
         try:
             initialize_database(database)
+            ensure_primary_dataset_import(database, str(args.source_csv))
             result = load_sample_operations(database, frame)
         finally:
             database.dispose()

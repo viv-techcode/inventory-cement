@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from inventory_app.models import ApplicationSetting, Base, SchemaVersion
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 6
 DEFAULT_SETTINGS: dict[str, object] = {
     "safety_stock_days_default": 7,
     "default_forecast_frequency": "weekly",
@@ -69,14 +69,22 @@ def _apply_additive_migrations(db: Database) -> None:
                 connection.execute(text(
                     "ALTER TABLE inventory_transactions ADD COLUMN unit_cost_inr NUMERIC(18, 4)"
                 ))
-        source_tag_defaults = {
-            "historical_observations": "historical_csv",
+        # The historical-observation label was redundant. Remove it on upgraded databases.
+        if "historical_observations" in tables:
+            columns = {column["name"] for column in inspector.get_columns("historical_observations")}
+            if "source_tag" in columns:
+                connection.execute(text("ALTER TABLE historical_observations DROP COLUMN source_tag"))
+            if "demand_level" not in columns:
+                connection.execute(text("ALTER TABLE historical_observations ADD COLUMN demand_level VARCHAR(10) NOT NULL DEFAULT 'Medium'"))
+            if "price_level" not in columns:
+                connection.execute(text("ALTER TABLE historical_observations ADD COLUMN price_level VARCHAR(10) NOT NULL DEFAULT 'Medium'"))
+        operational_tag_defaults = {
             "inventory_transactions": "operator",
             "customers": "operator",
             "sales_records": "operator",
             "reorder_rules": "operator",
         }
-        for table, default in source_tag_defaults.items():
+        for table, default in operational_tag_defaults.items():
             if table not in tables:
                 continue
             columns = {column["name"] for column in inspector.get_columns(table)}
@@ -99,7 +107,7 @@ def initialize_database(db: Database) -> None:
                 f"Database schema version {version.version} is newer than this app ({SCHEMA_VERSION})."
             )
         elif version.version < SCHEMA_VERSION:
-            # Migrations only add columns/tables; no existing rows are deleted or rewritten.
+            # Versioned schema changes are idempotent; operational records are untouched.
             version.version = SCHEMA_VERSION
         for key, value in DEFAULT_SETTINGS.items():
             if session.get(ApplicationSetting, key) is None:

@@ -14,8 +14,9 @@ from api.errors import APIProblem
 from inventory_app.analytics import aggregate_consumption
 from inventory_app.data_quality import history_to_frame
 from inventory_app.inventory import local_today
-from inventory_app.models import Customer, Material, ProjectSite, SalesRecord
+from inventory_app.models import Customer, Material, ProjectSite, ReorderRule, SalesRecord
 from inventory_app.reports import current_inventory_report
+from inventory_app.risk import calculate_inventory_risk, material_order_parameters
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -54,6 +55,63 @@ def dashboard(
     )
     overview_low = int(overview_balances["reorder_alert"].fillna(False).astype(bool).sum())
     overview_out = int((overview_initialized["current_usable_stock"] <= 0).sum())
+
+    # A lightweight, past-only naive baseline keeps dashboard risk available without
+    # fitting models on a page request. Missing physical counts remain High risk.
+    historical = history_to_frame(session)
+    rule_rows = session.scalars(select(ReorderRule).where(ReorderRule.is_active.is_(True))).all()
+    rules = {(row.site_id, row.material_id): row for row in rule_rows}
+    balances_by_key = {(row.site, row.material): row for row in overview_balances.itertuples(index=False)}
+    site_ids = {site.identifier: site.id for site in sites}
+    material_by_name = {material.name: material for material in materials}
+    risk_rows = []
+    for site in sites:
+        for material in materials:
+            pair = historical.loc[
+                (historical["project_site_id"] == site.identifier)
+                & (historical["material"] == material.name)
+            ].sort_values("date") if not historical.empty else historical
+            demand = None
+            sigma = None
+            if not pair.empty:
+                values = pd.to_numeric(pair["consumption_qty"], errors="coerce").dropna().tail(13).clip(lower=0)
+                if len(values):
+                    demand = float(values.tail(4).mean())
+                    errors = values.diff().dropna().tail(12)
+                    sigma = float(errors.std(ddof=1)) if len(errors) > 1 else 0.0
+            balance = balances_by_key.get((site.identifier, material.name))
+            stock = getattr(balance, "current_usable_stock", None) if balance else None
+            rule = rules.get((site.id, material.id))
+            lead = (rule.lead_time_days if rule and rule.lead_time_days is not None else material.default_lead_time_days)
+            params = material_order_parameters(material.name, unit_price_inr=material.benchmark_unit_price_inr)
+            risk = calculate_inventory_risk(
+                on_hand_stock=stock,
+                forecast_weekly_demand=demand,
+                forecast_error_sigma=sigma,
+                lead_time_days=lead,
+                order_cost_inr=params["order_cost_inr"],
+                unit_price_inr=params["unit_price_inr"],
+                pack_size=rule.order_multiple if rule and rule.order_multiple else params["pack_size"],
+                minimum_order_qty=rule.minimum_order_qty if rule and rule.minimum_order_qty else material.minimum_order_qty or 0,
+                service_level=0.95,
+                as_of=today,
+            )
+            risk_rows.append({
+                "site": site.identifier,
+                "material": material.name,
+                "unit": material.unit,
+                "stock": stock,
+                "lead_time_days": lead,
+                "risk_level": risk["risk_level"],
+                "overstock": risk["overstock"],
+                "status": risk["status"],
+                "days_of_cover": risk["days_of_cover"],
+                "suggestion": risk["suggestion"]["action"],
+                "suggested_qty": risk["suggestion"]["quantity"],
+                "demand_basis": "4-week naive mean; error sigma from recent one-step changes",
+            })
+    risk_counts = {level: sum(row["risk_level"] == level for row in risk_rows) for level in ("HIGH", "MEDIUM", "LOW")}
+    risk_rows.sort(key=lambda row: ({"HIGH": 0, "MEDIUM": 1, "LOW": 2}[row["risk_level"]], row["site"], row["material"]))
 
     balances = overview_balances.copy()
     if selected_site is not None:
@@ -190,12 +248,19 @@ def dashboard(
                 else "No initialized stock in the catalogue" if overview_initialized.empty
                 else "Unavailable — one or more balances lack a complete recorded cost basis"
             ),
+            "risk_high": risk_counts["HIGH"],
+            "risk_medium": risk_counts["MEDIUM"],
+            "risk_low": risk_counts["LOW"],
+            "risk_pairs": len(risk_rows),
+            "risk_overstock": sum(bool(row["overstock"]) for row in risk_rows),
         },
         "alerts": alerts[:30],
+        "inventory_risk": risk_rows[:30],
+        "inventory_risk_method": "Past-only baseline: mean of last four observed weekly consumptions; sigma from recent one-step changes; 95% service target. Missing physical stock or lead time is High risk.",
         "top_materials": top_materials,
-        "historical_consumption_source": "Historical CSV",
+        "historical_consumption_source": "Construction Materials Dehradun Dataset",
         "historical_coverage": historical_coverage,
         "historical_consumption_trend": historical_trend,
         "operational_sales_revenue_trend": sales_trend,
-        "source_separation_note": "Historical CSV observations and operational sales are returned as separate series and are never combined.",
+        "source_separation_note": "Construction Materials Dehradun Dataset observations and operational sales are returned as separate series and are never combined.",
     }

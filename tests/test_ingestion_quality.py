@@ -11,26 +11,26 @@ from conftest import SOURCE_CSV
 
 def test_supplied_csv_schema_and_quality(seeded_db):
     db, result = seeded_db
-    assert result.total_rows == 6300
-    assert result.accepted_rows == 6300
+    assert result.total_rows == 8940
+    assert result.accepted_rows == 8940
     assert result.rejected_rows == 0
     with db.session() as session:
         history = history_to_frame(session)
         report = build_data_quality_report(history)
-        assert report["row_count"] == 6300
-        assert report["column_count"] == 14
+        assert report["row_count"] == 8940
+        assert report["column_count"] == 16
         assert report["site_count"] == 6
         assert report["material_count"] == 10
         assert report["series_count"] == 60
-        assert report["series_observations_min"] == 105
-        assert report["series_observations_max"] == 105
+        assert report["series_observations_min"] == 149
+        assert report["series_observations_max"] == 149
         assert report["date_min"].startswith("2024-01-01")
-        assert report["date_max"].startswith("2025-12-29")
+        assert report["date_max"].startswith("2026-11-02")
         assert sum(report["missing_by_column"].values()) == 0
-        assert report["stock_rollforward_comparable_pairs"] == 6240
+        assert report["stock_rollforward_comparable_pairs"] == 8880
         assert report["stock_rollforward_consistency_pct"] == 100.0
         assert report["wpi_reference_month_mismatches"] == 0
-        assert session.scalar(select(func.count(HistoricalObservation.id))) == 6300
+        assert session.scalar(select(func.count(HistoricalObservation.id))) == 8940
         assert session.scalar(select(func.count(Material.id))) == 10
         assert session.scalar(select(func.count(ProjectSite.id))) == 6
 
@@ -40,10 +40,10 @@ def test_same_file_import_is_idempotent(seeded_db):
     raw = SOURCE_CSV.read_bytes()
     duplicate = import_dataframe(db, read_csv_bytes(raw), file_name=SOURCE_CSV.name, file_bytes=raw)
     assert duplicate.duplicate_file is True
-    assert duplicate.accepted_rows == 6300
+    assert duplicate.accepted_rows == 8940
     with db.session() as session:
         assert session.scalar(select(func.count(ImportRun.id))) == 1
-        assert session.scalar(select(func.count(HistoricalObservation.id))) == 6300
+        assert session.scalar(select(func.count(HistoricalObservation.id))) == 8940
 
 
 def test_invalid_rows_are_reported_not_silently_removed(fresh_db):

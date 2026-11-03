@@ -25,6 +25,8 @@ HISTORY_COLUMNS = [
     "opening_stock_qty",
     "incoming_qty",
     "unit_price_inr",
+    "demand_level",
+    "price_level",
     "supplier_lead_time_days",
     "wpi_reference_month",
 ]
@@ -51,9 +53,10 @@ def history_to_frame(session: Session) -> pd.DataFrame:
                 "opening_stock_qty": float(row.opening_stock_qty),
                 "incoming_qty": float(row.incoming_qty),
                 "unit_price_inr": float(row.unit_price_inr),
+                "demand_level": row.demand_level,
+                "price_level": row.price_level,
                 "supplier_lead_time_days": int(row.supplier_lead_time_days),
                 "wpi_reference_month": row.wpi_reference_month,
-                "source_tag": row.source_tag,
                 "source_row_number": row.source_row_number,
                 "import_id": row.import_id,
             }
@@ -77,7 +80,6 @@ def build_data_quality_report(frame: pd.DataFrame, *, as_of: date | None = None)
             "site_count": 0,
             "material_count": 0,
             "series_count": 0,
-            "source_tag_distribution": {},
             "warnings": ["No historical observations are loaded."],
             "missing_by_column": {name: 0 for name in HISTORY_COLUMNS},
         }
@@ -157,9 +159,6 @@ def build_data_quality_report(frame: pd.DataFrame, *, as_of: date | None = None)
         "project_type_count": int(frame["project_type"].nunique(dropna=True)),
         "phase_count": int(frame["project_phase"].nunique(dropna=True)),
         "series_count": int(len(series_counts)),
-        "source_tag_distribution": {
-            str(k): int(v) for k, v in frame.get("source_tag", pd.Series(dtype=str)).fillna("unknown").value_counts().items()
-        },
         "series_observations_min": int(series_counts.min()) if len(series_counts) else 0,
         "series_observations_max": int(series_counts.max()) if len(series_counts) else 0,
         "missing_by_column": missing,

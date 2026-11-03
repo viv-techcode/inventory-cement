@@ -245,7 +245,7 @@ def test_forecast_source_minimum_is_explicit_and_sources_never_mix(api_client, f
     site, material = _create_pair(api_client, site="Forecast Yard", material="Forecast Cement", unit="bags")
     status = api_client.get(f"/api/forecast-sources?site_id={site['id']}&material_id={material['id']}&frequency=weekly")
     assert status.status_code == 200
-    assert status.json()["source_label_if_auto"] == "Historical CSV"
+    assert status.json()["source_label_if_auto"] == "Construction Materials Dehradun Dataset"
     assert status.json()["minimum_operational_sales_periods"] == MIN_OPERATIONAL_SALES_PERIODS["weekly"] == 26
 
     first_day = local_today() - timedelta(days=25 * 7)
@@ -265,7 +265,7 @@ def test_forecast_source_minimum_is_explicit_and_sources_never_mix(api_client, f
     assert ready.json()["operational_sales_eligible"] is True
     assert ready.json()["source_label_if_auto"] == "Operational sales"
     monthly = api_client.get(f"/api/forecast-sources?site_id={site['id']}&material_id={material['id']}&frequency=monthly")
-    assert monthly.json()["source_label_if_auto"] == "Historical CSV"
+    assert monthly.json()["source_label_if_auto"] == "Construction Materials Dehradun Dataset"
 
     # Clearly labelled sample-ledger sales remain reportable but are not promoted
     # into the operational-sales training source.
@@ -276,4 +276,4 @@ def test_forecast_source_minimum_is_explicit_and_sources_never_mix(api_client, f
     assert excluded.status_code == 200
     assert excluded.json()["observed_operational_sales_periods"] == 0
     assert excluded.json()["operational_sales_eligible"] is False
-    assert excluded.json()["source_label_if_auto"] == "Historical CSV"
+    assert excluded.json()["source_label_if_auto"] == "Construction Materials Dehradun Dataset"

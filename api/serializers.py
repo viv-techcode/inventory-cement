@@ -68,7 +68,6 @@ def customer_payload(customer: Customer) -> dict[str, Any]:
         "phone": customer.phone,
         "is_active": customer.is_active,
         "notes": customer.notes,
-        "source_tag": customer.source_tag,
     }
 
 
@@ -88,7 +87,6 @@ def reorder_rule_payload(rule: ReorderRule, *, site: ProjectSite, material: Mate
         "maximum_stock_qty": as_number(rule.maximum_stock_qty),
         "is_active": rule.is_active,
         "notes": rule.notes,
-        "source_tag": rule.source_tag,
         "updated_at": as_iso(rule.updated_at),
     }
 
@@ -120,7 +118,6 @@ def sale_payload(
         "margin_status": "Available" if sale.gross_margin_inr is not None else "Unavailable — no fully recorded FIFO cost basis",
         "reference": sale.reference,
         "notes": sale.notes,
-        "source_tag": sale.source_tag,
         "inventory_transaction_id": sale.inventory_transaction_id,
         "created_at": as_iso(sale.created_at),
     }
@@ -160,7 +157,11 @@ def forecast_payload(
         })
     forecasts = {
         name: [
-            {"date": as_iso(row["date"]), "forecast": as_number(row["forecast"])}
+            {
+                "date": as_iso(row["date"]),
+                "forecast": as_number(row["forecast"]),
+                **({"lower": as_number(row["lower"]), "upper": as_number(row["upper"])} if "lower" in frame.columns and "upper" in frame.columns else {}),
+            }
             for _, row in frame.iterrows()
         ]
         for name, frame in assessment["forecasts"].items()
@@ -192,6 +193,7 @@ def forecast_payload(
         "evaluation_start": assessment["evaluation_start"],
         "evaluation_end": assessment["evaluation_end"],
         "best_model": assessment["best_model"],
+        "prediction_interval": assessment.get("prediction_interval"),
         "cache_hit": bool(assessment.get("cache_hit")),
         "metrics": assessment["metrics"],
         "feature_importance": feature_importance,

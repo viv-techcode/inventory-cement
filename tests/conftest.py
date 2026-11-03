@@ -8,7 +8,7 @@ from inventory_app.database import Database, initialize_database
 from inventory_app.ingestion import import_dataframe, read_csv_bytes
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_CSV = PROJECT_ROOT / "data" / "Dehradun_Inventory_Dataset_Random_Times_Real_Places.csv"
+SOURCE_CSV = PROJECT_ROOT / "data" / "construction_materials_dehradun_dataset.csv"
 
 
 @pytest.fixture

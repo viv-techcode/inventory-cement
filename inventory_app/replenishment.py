@@ -106,6 +106,7 @@ def calculate_replenishment(
 
     lead_demand = Decimal("0")
     forecast = list(forecast_values) if forecast_values is not None else []
+    forecast_inputs: list[Decimal] = []
     if forecast:
         remaining_days = Decimal(lead_time_days)
         for raw_value in forecast:
@@ -115,6 +116,7 @@ def calculate_replenishment(
             if value < 0:
                 warnings.append("Negative forecast was clipped to zero for replenishment arithmetic.")
                 value = Decimal("0")
+            forecast_inputs.append(value)
             covered = min(remaining_days, Decimal(forecast_step_days))
             lead_demand += value * covered / Decimal(forecast_step_days)
             remaining_days -= covered
@@ -136,6 +138,10 @@ def calculate_replenishment(
     safety_stock = (rate * Decimal(safety_stock_days)) if rate is not None else Decimal("0")
     if rate is None and safety_stock_days:
         warnings.append("Safety-stock quantity is zero because a reliable historical daily rate is unavailable.")
+    if lead_demand == 0 and (rate is None or rate == 0):
+        warnings.append("Observed demand is zero or unavailable; the demand-based order quantity may be zero. Check source coverage before acting.")
+    if stock == 0:
+        warnings.append("Current usable stock is zero; the recommendation uses a verified zero ledger balance.")
     due_by = today + timedelta(days=lead_time_days)
     eligible_incoming = Decimal("0")
     eligible_lines: list[dict[str, Any]] = []
@@ -185,6 +191,10 @@ def calculate_replenishment(
             recommended = max(recommended, min_qty)
         if recommended > 0 and multiple > 0:
             recommended = (recommended / multiple).to_integral_value(rounding=ROUND_CEILING) * multiple
+        # Inventory and procurement quantities are persisted as Numeric(..., 4).
+        # Round upward so DB precision cannot turn a recommendation into a short PO.
+        if recommended > 0:
+            recommended = recommended.quantize(Decimal("0.0001"), rounding=ROUND_CEILING)
         if max_stock is not None and stock + eligible_incoming + recommended > max_stock:
             capacity_conflict = True
             warnings.append(
@@ -221,6 +231,8 @@ def calculate_replenishment(
         "current_stock_basis": current_stock_basis,
         "lead_time_days": lead_time_days,
         "lead_time_demand": lead_demand,
+        "forecast_values": forecast_inputs,
+        "forecast_step_days": forecast_step_days,
         "demand_basis": demand_basis,
         "historical_daily_rate": rate,
         "safety_stock_days": safety_stock_days,

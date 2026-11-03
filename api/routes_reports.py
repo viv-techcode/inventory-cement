@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 from datetime import date
-from io import BytesIO
-
 import pandas as pd
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
@@ -169,7 +167,7 @@ def export_historical(
     session: Session = Depends(get_session),
 ):
     _check_date_range(start_date, end_date)
-    return _csv_response(_historical_frame(session, site_id, material_id, start_date, end_date), "historical_csv_observations.csv")
+    return _csv_response(_historical_frame(session, site_id, material_id, start_date, end_date), "construction_materials_dehradun_dataset_observations.csv")
 
 
 @router.get("/reports/forecast-metadata.csv")
@@ -181,7 +179,7 @@ def export_forecast_metadata(session: Session = Depends(get_session)):
 def export_quality(session: Session = Depends(get_session)):
     report = build_data_quality_report(history_to_frame(session))
     rows = [
-        {"check": "Historical rows", "result": report.get("row_count"), "note": "Imported Historical CSV observations only."},
+        {"check": "Dataset rows", "result": report.get("row_count"), "note": "Imported Construction Materials Dehradun Dataset observations only."},
         {"check": "Columns", "result": report.get("column_count"), "note": "Verified source fields."},
         {"check": "Sites", "result": report.get("site_count"), "note": "Historical source identifiers."},
         {"check": "Materials", "result": report.get("material_count"), "note": "Historical source material names."},
@@ -208,7 +206,7 @@ def export_workbook(session: Session = Depends(get_session)):
         "Current inventory": current_inventory_report(session),
         "Operational ledger": inventory_report(session),
         "Operational sales": _filtered_sales(session, None, None, None, None, None, None),
-        "Historical CSV": history_to_frame(session),
+        "Construction Materials Dehradun Dataset": history_to_frame(session),
         "Forecast metadata": forecast_metadata_report(session),
         "Import history": imports,
         "Rejected rows": rejected,

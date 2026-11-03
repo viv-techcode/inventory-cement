@@ -31,7 +31,6 @@ def test_v3_additive_migration_is_idempotent_and_preserves_legacy_rows(tmp_path)
 
     # Simulate a pre-v3 database: the v2 cost field and all source-tag columns are absent.
     legacy_tag_tables = (
-        "historical_observations",
         "inventory_transactions",
         "customers",
         "sales_records",
@@ -39,16 +38,19 @@ def test_v3_additive_migration_is_idempotent_and_preserves_legacy_rows(tmp_path)
     )
     with db.engine.begin() as connection:
         connection.execute(text("ALTER TABLE inventory_transactions DROP COLUMN unit_cost_inr"))
+        connection.execute(text("ALTER TABLE historical_observations ADD COLUMN source_tag VARCHAR(40) NOT NULL DEFAULT 'historical_csv'"))
         for table in legacy_tag_tables:
             connection.execute(text(f"ALTER TABLE {table} DROP COLUMN source_tag"))
         connection.execute(text("UPDATE schema_version SET version = 1 WHERE id = 1"))
     assert "unit_cost_inr" not in {column["name"] for column in inspect(db.engine).get_columns("inventory_transactions")}
+    assert "source_tag" in {column["name"] for column in inspect(db.engine).get_columns("historical_observations")}
     for table in legacy_tag_tables:
         assert "source_tag" not in {column["name"] for column in inspect(db.engine).get_columns(table)}
 
     initialize_database(db)
     initialize_database(db)
     assert "unit_cost_inr" in {column["name"] for column in inspect(db.engine).get_columns("inventory_transactions")}
+    assert "source_tag" not in {column["name"] for column in inspect(db.engine).get_columns("historical_observations")}
     for table in legacy_tag_tables:
         assert "source_tag" in {column["name"] for column in inspect(db.engine).get_columns(table)}
     with db.session() as session:
@@ -58,5 +60,5 @@ def test_v3_additive_migration_is_idempotent_and_preserves_legacy_rows(tmp_path)
         assert txn.notes == "legacy row preserved"
         assert txn.unit_cost_inr is None
         assert txn.source_tag == "operator"
-        assert session.get(SchemaVersion, 1).version == 3
+        assert session.get(SchemaVersion, 1).version == 6
     db.dispose()
