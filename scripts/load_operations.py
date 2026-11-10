@@ -32,9 +32,11 @@ from inventory_app.models import (
     ProjectSite,
     ReorderRule,
     SalesRecord,
+    Supplier,
 )
 from inventory_app.reorder import save_reorder_rule
 from inventory_app.sales import create_customer, create_sale
+from inventory_app.procurement import create_supplier
 SAMPLE_COLUMNS = list(EXPECTED_COLUMNS)
 
 SAMPLE_TAG = "sample_ledger"
@@ -51,6 +53,20 @@ CUSTOMER_NAMES = [
     "Mishra Building Traders", "Yadav Contractors", "Kumar Infra Solutions", "Gupta Buildwell",
     "Das Construction Services", "Patel Building Mart",
 ]
+DEMO_SUPPLIERS = [
+    "Demo — Dehradun Cement Supply",
+    "Demo — Doon Steel Traders",
+    "Demo — Himalayan Aggregates",
+    "Demo — Uttarakhand Pipe & Fittings",
+    "Demo — Valley Building Materials",
+]
+
+
+def _ensure_demo_suppliers(session) -> None:
+    if int(session.scalar(select(func.count(Supplier.id))) or 0) != 0:
+        return
+    for name in DEMO_SUPPLIERS:
+        create_supplier(session, name=name, city="Dehradun", notes="Synthetic demo supplier")
 
 
 def _decimal(value: object, field: str) -> Decimal:
@@ -250,6 +266,7 @@ def load_sample_operations(database: Database, raw_frame: pd.DataFrame) -> dict[
             _verify_sample_observations(session, frame)
             sites = {site.identifier: site for site in session.scalars(select(ProjectSite)).all()}
             materials = {material.name: material for material in session.scalars(select(Material)).all()}
+            _ensure_demo_suppliers(session)
             customers = _ensure_customers(session)
             for pair_index, ((site_name, material_name), raw_series) in enumerate(
                 frame.groupby(["project_site_id", "material"], sort=True, dropna=False)
@@ -392,6 +409,7 @@ def load_sample_operations(database: Database, raw_frame: pd.DataFrame) -> dict[
     with database.session() as session:
         return {
             "sample_customers": int(session.scalar(select(func.count(Customer.id)).where(Customer.source_tag == SAMPLE_TAG)) or 0),
+            "demo_suppliers": int(session.scalar(select(func.count(Supplier.id))) or 0),
             "sample_opening_counts": int(session.scalar(select(func.count(InventoryTransaction.id)).where(InventoryTransaction.source_tag == SAMPLE_TAG, InventoryTransaction.transaction_type == "opening_balance")) or 0),
             "sample_receipts": int(session.scalar(select(func.count(InventoryTransaction.id)).where(InventoryTransaction.source_tag == SAMPLE_TAG, InventoryTransaction.transaction_type == "receipt")) or 0),
             "sample_sale_transactions": int(session.scalar(select(func.count(InventoryTransaction.id)).where(InventoryTransaction.source_tag == SAMPLE_TAG, InventoryTransaction.source == "sale")) or 0),
@@ -399,6 +417,32 @@ def load_sample_operations(database: Database, raw_frame: pd.DataFrame) -> dict[
             "sample_reorder_rules": int(session.scalar(select(func.count(ReorderRule.id)).where(ReorderRule.source_tag == SAMPLE_TAG)) or 0),
             "reconciled_pairs": pair_count,
         }
+
+
+def ensure_sample_operations(database: Database, source_csv: Path = config.SOURCE_CSV) -> dict[str, int | str] | None:
+    """Seed sample operations once, after importing the matching historical CSV."""
+    if not source_csv.exists():
+        raise FileNotFoundError(f"Dataset not found: {source_csv}.")
+    with database.session() as session:
+        existing = int(session.scalar(
+            select(func.count(InventoryTransaction.id)).where(InventoryTransaction.source_tag == SAMPLE_TAG)
+        ) or 0)
+    if existing:
+        with database.session() as session, session.begin():
+            _ensure_demo_suppliers(session)
+        return None
+    frame = read_csv_bytes(source_csv.read_bytes())
+    frame = frame.sort_values(["project_site_id", "material", "date"], kind="stable").groupby(
+        ["project_site_id", "material"], sort=False
+    ).tail(30).copy()
+    result = load_sample_operations(database, frame)
+    if not 25 <= int(result["sample_customers"]) <= 40:
+        raise RuntimeError("Sample customer count is outside the requested 25–40 range.")
+    if int(result["demo_suppliers"]) < 1:
+        raise RuntimeError("No supplier records are available for the purchasing demo.")
+    if result["sample_reorder_rules"] != 60 or result["reconciled_pairs"] != 60:
+        raise RuntimeError("Sample ledger/rules did not cover all 60 site/material pairs.")
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -410,20 +454,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Dataset not found: {args.source_csv}.", file=sys.stderr)
         return 2
     try:
-        frame = read_csv_bytes(args.source_csv.read_bytes())
-        frame = frame.sort_values(["project_site_id", "material", "date"], kind="stable").groupby(["project_site_id", "material"], sort=False).tail(30).copy()
         database = Database(args.database_url)
         try:
             initialize_database(database)
             ensure_primary_dataset_import(database, str(args.source_csv))
-            result = load_sample_operations(database, frame)
+            result = ensure_sample_operations(database, args.source_csv)
         finally:
             database.dispose()
-        print(f"Sample operations loaded/reconciled: {result}", flush=True)
-        if result["sample_customers"] < 25 or result["sample_customers"] > 40:
-            raise RuntimeError("Sample customer count is outside the requested 25–40 range.")
-        if result["sample_reorder_rules"] != 60 or result["reconciled_pairs"] != 60:
-            raise RuntimeError("Sample ledger/rules did not cover all 60 site/material pairs.")
+        print(f"Sample operations loaded/reconciled: {result or 'already present'}", flush=True)
     except Exception as exc:
         print(f"Operations loader failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

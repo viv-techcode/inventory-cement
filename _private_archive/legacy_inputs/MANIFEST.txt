@@ -1,0 +1,6 @@
+Pre-merge archive manifest
+
+Dehradun_Inventory_Dataset_Random_Times_Real_Places.csv | rows=6300 | sha256=828d9354e47661e28b7b668cb80925c5d54f2501caa2b9960aed1e1efaa3f39c
+Dehradun_Inventory_Dataset_Sample_Extension.csv | rows=2640 | sha256=e9c25f5b7d9538b6d47bc3297c76886884cce686b4a614492daa20f9c5347d3a
+extend_dataset.py | rows=n/a | sha256=05cd4c3f3b333720f0cfef99b9e5fe29002267b2b27260cb0d04e88db0354474
+uploads_original_copy.csv | rows=6300 | sha256=828d9354e47661e28b7b668cb80925c5d54f2501caa2b9960aed1e1efaa3f39c

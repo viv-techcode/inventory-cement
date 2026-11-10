@@ -1,0 +1,2132 @@
+{
+  "status": "evaluated",
+  "method": "3 expanding-window rolling-origin folds before untouched final 20% holdout; selection only by backtest MAE",
+  "calendar_periods": 149,
+  "holdout_start": "2026-04-13",
+  "holdout_end": "2026-11-08",
+  "folds": [
+    {
+      "origin_index": 65,
+      "end_index_exclusive": 75
+    },
+    {
+      "origin_index": 75,
+      "end_index_exclusive": 85
+    },
+    {
+      "origin_index": 85,
+      "end_index_exclusive": 95
+    }
+  ],
+  "transform_selection": {
+    "Pooled MLR": {
+      "transform": "raw",
+      "backtest_mae_macro_mean": 275.91221831636284,
+      "scores_by_transform": {
+        "raw": 275.91221831636284,
+        "log1p": 1102.092218877964,
+        "series_mean": 1898.137733388092
+      }
+    },
+    "Pooled Random Forest": {
+      "transform": "log1p",
+      "backtest_mae_macro_mean": 238.3864962161139,
+      "scores_by_transform": {
+        "raw": 245.46126271479488,
+        "log1p": 238.3864962161139,
+        "series_mean": 454.0699903005331
+      }
+    },
+    "Pooled XGBoost": {
+      "transform": "log1p",
+      "backtest_mae_macro_mean": 212.49869146353473,
+      "scores_by_transform": {
+        "raw": 251.30118483280606,
+        "log1p": 212.49869146353473,
+        "series_mean": 388.68933124521277
+      }
+    }
+  },
+  "unavailable_candidates": {},
+  "overall": {
+    "before_naive": {
+      "mae": {
+        "mean": 65.21903227777779,
+        "median": 27.05,
+        "series_count": 60
+      },
+      "rmse": {
+        "mean": 73.82539371648993,
+        "median": 34.08012679967389,
+        "series_count": 60
+      },
+      "r2": {
+        "mean": -2.2214574549254222,
+        "median": -2.0139667516255058,
+        "series_count": 60
+      },
+      "wape_pct": {
+        "mean": 30.28167418664084,
+        "median": 29.834832492377508,
+        "series_count": 60
+      },
+      "backtest_mae": {
+        "mean": 209.39335555555553,
+        "median": 35.93333333333334,
+        "series_count": 60
+      }
+    },
+    "after_pooled_or_naive": {
+      "mae": {
+        "mean": 85.55615523901628,
+        "median": 20.57927916523895,
+        "series_count": 60
+      },
+      "rmse": {
+        "mean": 100.9856152693369,
+        "median": 22.896826712849343,
+        "series_count": 60
+      },
+      "r2": {
+        "mean": -4.798324582214985,
+        "median": -1.8439016546244011,
+        "series_count": 60
+      },
+      "wape_pct": {
+        "mean": 33.8284844454649,
+        "median": 29.02809935331502,
+        "series_count": 60
+      },
+      "backtest_mae": {
+        "mean": 198.65653701533972,
+        "median": 35.18655868504577,
+        "series_count": 60
+      }
+    }
+  },
+  "per_material": {
+    "AAC Blocks": {
+      "before_naive": {
+        "mae": {
+          "mean": 123.29346666666665,
+          "median": 127.84414833333334,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 143.14925017334693,
+          "median": 146.9228102275914,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -2.6833321430055137,
+          "median": -2.750883563856673,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 31.24139520571701,
+          "median": 31.60244518164618,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 333.9166666666667,
+          "median": 330.95000000000005,
+          "series_count": 6
+        }
+      },
+      "after_pooled_or_naive": {
+        "mae": {
+          "mean": 176.4207046589349,
+          "median": 127.84414833333334,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 212.99001045410054,
+          "median": 146.9228102275914,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -11.952383928495268,
+          "median": -2.750883563856673,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 44.53308685499712,
+          "median": 31.60244518164618,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 321.83712353400205,
+          "median": 330.95000000000005,
+          "series_count": 6
+        }
+      },
+      "series_count": 6
+    },
+    "Binding Wire": {
+      "before_naive": {
+        "mae": {
+          "mean": 2.8784461111111113,
+          "median": 2.9043066666666664,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 3.3320362099110628,
+          "median": 3.4360524060111572,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -2.140174173676661,
+          "median": -2.203753347775744,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 32.798141050314364,
+          "median": 33.2145287319175,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 3.323611111111111,
+          "median": 3.3916666666666666,
+          "series_count": 6
+        }
+      },
+      "after_pooled_or_naive": {
+        "mae": {
+          "mean": 2.8784461111111113,
+          "median": 2.9043066666666664,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 3.3320362099110628,
+          "median": 3.4360524060111572,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -2.140174173676661,
+          "median": -2.203753347775744,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 32.798141050314364,
+          "median": 33.2145287319175,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 3.323611111111111,
+          "median": 3.3916666666666666,
+          "series_count": 6
+        }
+      },
+      "series_count": 6
+    },
+    "Bricks": {
+      "before_naive": {
+        "mae": {
+          "mean": 299.68190166666665,
+          "median": 296.85558499999996,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 324.89661025427455,
+          "median": 327.9405798594589,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -1.3246762539015942,
+          "median": -1.0157752308843673,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 25.262756805834638,
+          "median": 23.358634228821572,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 1499.216666666667,
+          "median": 1451.9666666666667,
+          "series_count": 6
+        }
+      },
+      "after_pooled_or_naive": {
+        "mae": {
+          "mean": 477.26641272803505,
+          "median": 326.7422833333333,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 564.3306320282227,
+          "median": 356.3360406428168,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -9.940189293166304,
+          "median": -1.5241735668893217,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 37.159165199410864,
+          "median": 26.168738058606735,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 1427.0228904119483,
+          "median": 1400.7043708846036,
+          "series_count": 6
+        }
+      },
+      "series_count": 6
+    },
+    "Cement": {
+      "before_naive": {
+        "mae": {
+          "mean": 52.16227555555556,
+          "median": 50.81620499999999,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 60.46359894525839,
+          "median": 59.11040680282581,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -1.8755131366293323,
+          "median": -1.7486502072943857,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 24.216943595815636,
+          "median": 24.252429548932994,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 39.66111111111112,
+          "median": 40.483333333333334,
+          "series_count": 6
+        }
+      },
+      "after_pooled_or_naive": {
+        "mae": {
+          "mean": 41.6871755352391,
+          "median": 45.50049527315248,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 47.53717306666051,
+          "median": 51.19770162526106,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -0.7598371453507003,
+          "median": -0.4228496368025694,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 19.21292572073742,
+          "median": 18.58620749859806,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 33.85043281264365,
+          "median": 36.49603905378805,
+          "series_count": 6
+        }
+      },
+      "series_count": 6
+    },
+    "Coarse Aggregate": {
+      "before_naive": {
+        "mae": {
+          "mean": 10.701978333333331,
+          "median": 10.302703333333332,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 12.385816402629288,
+          "median": 12.495427260554688,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -3.008965562615734,
+          "median": -2.523076045186036,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 34.26022189597148,
+          "median": 32.32271584633537,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 9.721166666666667,
+          "median": 9.365166666666667,
+          "series_count": 6
+        }
+      },
+      "after_pooled_or_naive": {
+        "mae": {
+          "mean": 9.003336444994444,
+          "median": 8.50864616675434,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 10.124764693265272,
+          "median": 9.870989702525433,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -1.9417377858513536,
+          "median": -1.8231283372904197,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 29.15199665452303,
+          "median": 29.023275445158955,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 8.566632534408336,
+          "median": 8.08252402998156,
+          "series_count": 6
+        }
+      },
+      "series_count": 6
+    },
+    "PVC Pipes": {
+      "before_naive": {
+        "mae": {
+          "mean": 51.81326055555555,
+          "median": 48.257045000000005,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 66.77842111178735,
+          "median": 64.03897857039647,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -1.4460507064851102,
+          "median": -1.3441292628106443,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 27.627424328842775,
+          "median": 27.25114671439799,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 36.38888888888889,
+          "median": 35.15,
+          "series_count": 6
+        }
+      },
+      "after_pooled_or_naive": {
+        "mae": {
+          "mean": 43.04117881563962,
+          "median": 43.27412107438606,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 51.152155554580794,
+          "median": 53.02294032936037,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -0.5846632517645234,
+          "median": -0.2636848232901522,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 23.36358444342181,
+          "median": 23.63086627403098,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 35.346297182952874,
+          "median": 33.9198920183791,
+          "series_count": 6
+        }
+      },
+      "series_count": 6
+    },
+    "Ready-Mix Concrete": {
+      "before_naive": {
+        "mae": {
+          "mean": 2.0525961111111113,
+          "median": 2.1557316666666666,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 2.337742461734118,
+          "median": 2.4113068862428526,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -3.1636923753117245,
+          "median": -2.7601759130176253,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 37.25243242237475,
+          "median": 36.417609833355684,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 3.8524444444444446,
+          "median": 3.783666666666667,
+          "series_count": 6
+        }
+      },
+      "after_pooled_or_naive": {
+        "mae": {
+          "mean": 3.649545626835069,
+          "median": 4.211621345972241,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 4.3126021362981,
+          "median": 4.877445125612531,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -15.058396241041379,
+          "median": -13.661770500849158,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 67.94994381847661,
+          "median": 69.21498329064843,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 3.696477564326179,
+          "median": 3.429846222325248,
+          "series_count": 6
+        }
+      },
+      "series_count": 6
+    },
+    "River Sand": {
+      "before_naive": {
+        "mae": {
+          "mean": 8.992953333333334,
+          "median": 9.151933333333332,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 10.275577441879525,
+          "median": 10.650677152745885,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -2.721493949675798,
+          "median": -2.7149272782840006,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 33.058088041064956,
+          "median": 33.67459966503727,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 14.98722222222222,
+          "median": 14.969166666666666,
+          "series_count": 6
+        }
+      },
+      "after_pooled_or_naive": {
+        "mae": {
+          "mean": 8.273048946829666,
+          "median": 8.29863107198726,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 9.78512161490203,
+          "median": 9.823399181147515,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -2.615188548612636,
+          "median": -2.162708646660897,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 30.955669229320865,
+          "median": 31.95724503979121,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 11.235227453362107,
+          "median": 10.688309168653404,
+          "series_count": 6
+        }
+      },
+      "series_count": 6
+    },
+    "TMT Steel": {
+      "before_naive": {
+        "mae": {
+          "mean": 90.05211888888887,
+          "median": 95.04190666666665,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 101.75058778267915,
+          "median": 106.62867948435652,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -1.9580008676060354,
+          "median": -1.92729733290561,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 30.803650287406146,
+          "median": 31.44709260083051,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 87.60711111111111,
+          "median": 84.67766666666667,
+          "series_count": 6
+        }
+      },
+      "after_pooled_or_naive": {
+        "mae": {
+          "mean": 83.61736385289451,
+          "median": 95.04190666666665,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 94.87714029768505,
+          "median": 106.62867948435652,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -1.5584832722078845,
+          "median": -1.8439016546244011,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 28.568088817017152,
+          "median": 31.44709260083051,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 84.70687895297978,
+          "median": 84.65263685893936,
+          "series_count": 6
+        }
+      },
+      "series_count": 6
+    },
+    "Tiles": {
+      "before_naive": {
+        "mae": {
+          "mean": 10.561325555555555,
+          "median": 10.079194999999999,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 12.884296381398839,
+          "median": 12.577570273269263,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -1.8926753803467173,
+          "median": -2.0318378738474205,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 26.295688233066652,
+          "median": 27.613602999488343,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 65.25866666666666,
+          "median": 63.67883333333333,
+          "series_count": 6
+        }
+      },
+      "after_pooled_or_naive": {
+        "mae": {
+          "mean": 9.724339669649192,
+          "median": 9.407099514133913,
+          "series_count": 6
+        },
+        "rmse": {
+          "mean": 11.41451663774298,
+          "median": 10.890831876279083,
+          "series_count": 6
+        },
+        "r2": {
+          "mean": -1.4321921819831305,
+          "median": -1.314727165068263,
+          "series_count": 6
+        },
+        "wape_pct": {
+          "mean": 24.59224266642975,
+          "median": 23.425569288872353,
+          "series_count": 6
+        },
+        "backtest_mae": {
+          "mean": 56.979798595662736,
+          "median": 51.3214192267325,
+          "series_count": 6
+        }
+      },
+      "series_count": 6
+    }
+  },
+  "series": [
+    {
+      "site": "Clement Town, Dehradun",
+      "material": "AAC Blocks",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 331.3666666666667,
+      "selected_backtest_mae": 331.3666666666667,
+      "before": {
+        "mae": 123.09034666666668,
+        "rmse": 143.77719920215907,
+        "r2": -2.589114936347905,
+        "wape_pct": 32.48312016384248,
+        "observations": 30
+      },
+      "after": {
+        "mae": 123.09034666666668,
+        "rmse": 143.77719920215907,
+        "r2": -2.589114936347905,
+        "wape_pct": 32.48312016384248,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Clement Town, Dehradun",
+      "material": "Binding Wire",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 3.235333333333334,
+      "selected_backtest_mae": 3.235333333333334,
+      "before": {
+        "mae": 2.8335966666666668,
+        "rmse": 3.204080591318931,
+        "r2": -2.607845255038737,
+        "wape_pct": 37.618692540021456,
+        "observations": 30
+      },
+      "after": {
+        "mae": 2.8335966666666668,
+        "rmse": 3.204080591318931,
+        "r2": -2.607845255038737,
+        "wape_pct": 37.618692540021456,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Clement Town, Dehradun",
+      "material": "Bricks",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 1704.4,
+      "selected_backtest_mae": 1461.8918324067033,
+      "before": {
+        "mae": 258.8959566666667,
+        "rmse": 272.2163289062879,
+        "r2": -0.8423662370971126,
+        "wape_pct": 22.739068006225093,
+        "observations": 30
+      },
+      "after": {
+        "mae": 167.16923898388788,
+        "rmse": 217.0820766982486,
+        "r2": -0.17164368403784436,
+        "wape_pct": 14.682626730620326,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Clement Town, Dehradun",
+      "material": "Cement",
+      "selected_model": "Pooled Random Forest",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 45.03333333333333,
+      "selected_backtest_mae": 36.75874477424277,
+      "before": {
+        "mae": 53.87226333333335,
+        "rmse": 63.008069644601896,
+        "r2": -1.8750261526071625,
+        "wape_pct": 25.880769528931346,
+        "observations": 30
+      },
+      "after": {
+        "mae": 31.796411001318425,
+        "rmse": 35.067210703193425,
+        "r2": 0.10946314751773267,
+        "wape_pct": 15.27531115372912,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Clement Town, Dehradun",
+      "material": "Coarse Aggregate",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 7.3713333333333315,
+      "selected_backtest_mae": 6.2267766360511825,
+      "before": {
+        "mae": 12.650406666666665,
+        "rmse": 13.840414508604862,
+        "r2": -5.000196044492921,
+        "wape_pct": 42.90506448893061,
+        "observations": 30
+      },
+      "after": {
+        "mae": 8.473991290998317,
+        "rmse": 9.647650711440262,
+        "r2": -1.9154821681800778,
+        "wape_pct": 28.740352179897183,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Clement Town, Dehradun",
+      "material": "PVC Pipes",
+      "selected_model": "Pooled Random Forest",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 35.63333333333333,
+      "selected_backtest_mae": 32.045137662746825,
+      "before": {
+        "mae": 48.39155666666667,
+        "rmse": 63.71231518126095,
+        "r2": -1.0551807646110314,
+        "wape_pct": 25.831519251051322,
+        "observations": 30
+      },
+      "after": {
+        "mae": 34.87241152298586,
+        "rmse": 36.654503519609044,
+        "r2": 0.31976662589844074,
+        "wape_pct": 18.614969875666183,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Clement Town, Dehradun",
+      "material": "Ready-Mix Concrete",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 3.3310000000000004,
+      "selected_backtest_mae": 3.1706334592571968,
+      "before": {
+        "mae": 2.2172533333333333,
+        "rmse": 2.436023220743185,
+        "r2": -4.829300448673244,
+        "wape_pct": 42.366171060542754,
+        "observations": 30
+      },
+      "after": {
+        "mae": 4.313443030491316,
+        "rmse": 5.291626273859136,
+        "r2": -26.50628386765237,
+        "wape_pct": 82.41911852939718,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Clement Town, Dehradun",
+      "material": "River Sand",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 13.212333333333333,
+      "selected_backtest_mae": 12.010429984944892,
+      "before": {
+        "mae": 8.59670666666667,
+        "rmse": 9.930168433046173,
+        "r2": -2.5881960676495144,
+        "wape_pct": 30.965710228098203,
+        "observations": 30
+      },
+      "after": {
+        "mae": 9.015723881432118,
+        "rmse": 10.829140038384338,
+        "r2": -3.267277401103657,
+        "wape_pct": 32.4750284072705,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Clement Town, Dehradun",
+      "material": "TMT Steel",
+      "selected_model": "Pooled Random Forest",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 109.33933333333333,
+      "selected_backtest_mae": 91.9379403845454,
+      "before": {
+        "mae": 76.3305533333333,
+        "rmse": 89.48869844626934,
+        "r2": -2.3794650860373436,
+        "wape_pct": 26.518747503354266,
+        "observations": 30
+      },
+      "after": {
+        "mae": 37.72202311736706,
+        "rmse": 48.24801353630471,
+        "r2": 0.017640486351561124,
+        "wape_pct": 13.105378681020305,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Clement Town, Dehradun",
+      "material": "Tiles",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 58.49566666666666,
+      "selected_backtest_mae": 44.78784687241444,
+      "before": {
+        "mae": 8.764786666666664,
+        "rmse": 11.36953131757564,
+        "r2": -1.3058894607149423,
+        "wape_pct": 24.110472021085318,
+        "observations": 30
+      },
+      "after": {
+        "mae": 8.516357294257935,
+        "rmse": 8.901438431978365,
+        "r2": -0.4134281757398046,
+        "wape_pct": 23.427084089299584,
+        "observations": 30
+      }
+    },
+    {
+      "site": "GMS Road, Dehradun",
+      "material": "AAC Blocks",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 197.9,
+      "selected_backtest_mae": 197.9,
+      "before": {
+        "mae": 76.34164666666666,
+        "rmse": 95.6544469460638,
+        "r2": -1.6633738146628692,
+        "wape_pct": 26.510984110444635,
+        "observations": 30
+      },
+      "after": {
+        "mae": 76.34164666666666,
+        "rmse": 95.6544469460638,
+        "r2": -1.6633738146628692,
+        "wape_pct": 26.510984110444635,
+        "observations": 30
+      }
+    },
+    {
+      "site": "GMS Road, Dehradun",
+      "material": "Binding Wire",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 2.6046666666666662,
+      "selected_backtest_mae": 2.6046666666666662,
+      "before": {
+        "mae": 2.05045,
+        "rmse": 2.239214362598335,
+        "r2": -1.3425282032405557,
+        "wape_pct": 30.916013845324187,
+        "observations": 30
+      },
+      "after": {
+        "mae": 2.05045,
+        "rmse": 2.239214362598335,
+        "r2": -1.3425282032405557,
+        "wape_pct": 30.916013845324187,
+        "observations": 30
+      }
+    },
+    {
+      "site": "GMS Road, Dehradun",
+      "material": "Bricks",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 1180.7666666666667,
+      "selected_backtest_mae": 1136.0031888865922,
+      "before": {
+        "mae": 291.99971666666664,
+        "rmse": 336.18495487100597,
+        "r2": -2.4111465439807143,
+        "wape_pct": 31.98866768943106,
+        "observations": 30
+      },
+      "after": {
+        "mae": 149.80615152210663,
+        "rmse": 194.48342990584555,
+        "r2": -0.14158706678817334,
+        "wape_pct": 16.41131455049891,
+        "observations": 30
+      }
+    },
+    {
+      "site": "GMS Road, Dehradun",
+      "material": "Cement",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 24.666666666666668,
+      "selected_backtest_mae": 24.666666666666668,
+      "before": {
+        "mae": 44.259980000000006,
+        "rmse": 51.906211014245045,
+        "r2": -2.3126916084164537,
+        "wape_pct": 26.61529646202412,
+        "observations": 30
+      },
+      "after": {
+        "mae": 44.259980000000006,
+        "rmse": 51.906211014245045,
+        "r2": -2.3126916084164537,
+        "wape_pct": 26.61529646202412,
+        "observations": 30
+      }
+    },
+    {
+      "site": "GMS Road, Dehradun",
+      "material": "Coarse Aggregate",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 6.388333333333334,
+      "selected_backtest_mae": 6.388333333333334,
+      "before": {
+        "mae": 9.641923333333333,
+        "rmse": 10.572217081467192,
+        "r2": -4.866703833152075,
+        "wape_pct": 40.84836656779059,
+        "observations": 30
+      },
+      "after": {
+        "mae": 9.641923333333333,
+        "rmse": 10.572217081467192,
+        "r2": -4.866703833152075,
+        "wape_pct": 40.84836656779059,
+        "observations": 30
+      }
+    },
+    {
+      "site": "GMS Road, Dehradun",
+      "material": "PVC Pipes",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 27.3,
+      "selected_backtest_mae": 27.3,
+      "before": {
+        "mae": 40.456406666666666,
+        "rmse": 52.55468144109841,
+        "r2": -1.3977110330328344,
+        "wape_pct": 26.730538756512978,
+        "observations": 30
+      },
+      "after": {
+        "mae": 40.456406666666666,
+        "rmse": 52.55468144109841,
+        "r2": -1.3977110330328344,
+        "wape_pct": 26.730538756512978,
+        "observations": 30
+      }
+    },
+    {
+      "site": "GMS Road, Dehradun",
+      "material": "Ready-Mix Concrete",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 4.165666666666667,
+      "selected_backtest_mae": 3.501152469620883,
+      "before": {
+        "mae": 1.463013333333333,
+        "rmse": 1.7931324148911403,
+        "r2": -1.8031048075115819,
+        "wape_pct": 33.24158970451684,
+        "observations": 30
+      },
+      "after": {
+        "mae": 4.83911470524128,
+        "rmse": 5.9183146162080105,
+        "r2": -29.535898977822338,
+        "wape_pct": 109.9510591596736,
+        "observations": 30
+      }
+    },
+    {
+      "site": "GMS Road, Dehradun",
+      "material": "River Sand",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 9.581333333333331,
+      "selected_backtest_mae": 9.581333333333331,
+      "before": {
+        "mae": 6.199826666666668,
+        "rmse": 7.010124154297604,
+        "r2": -2.261017325738933,
+        "wape_pct": 32.44734486072025,
+        "observations": 30
+      },
+      "after": {
+        "mae": 6.199826666666668,
+        "rmse": 7.010124154297604,
+        "r2": -2.261017325738933,
+        "wape_pct": 32.44734486072025,
+        "observations": 30
+      }
+    },
+    {
+      "site": "GMS Road, Dehradun",
+      "material": "TMT Steel",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 91.988,
+      "selected_backtest_mae": 91.988,
+      "before": {
+        "mae": 67.63744333333332,
+        "rmse": 75.984171687181,
+        "r2": -1.837889089298994,
+        "wape_pct": 29.757532205438388,
+        "observations": 30
+      },
+      "after": {
+        "mae": 67.63744333333332,
+        "rmse": 75.984171687181,
+        "r2": -1.837889089298994,
+        "wape_pct": 29.757532205438388,
+        "observations": 30
+      }
+    },
+    {
+      "site": "GMS Road, Dehradun",
+      "material": "Tiles",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 64.941,
+      "selected_backtest_mae": 51.07002706392162,
+      "before": {
+        "mae": 8.217236666666665,
+        "rmse": 9.998084797850035,
+        "r2": -2.0815548813598523,
+        "wape_pct": 27.415612202648816,
+        "observations": 30
+      },
+      "after": {
+        "mae": 10.297841734009891,
+        "rmse": 11.9102121621891,
+        "r2": -3.3729576428712083,
+        "wape_pct": 34.357247692415804,
+        "observations": 30
+      }
+    },
+    {
+      "site": "ISBT–Transport Nagar, Dehradun",
+      "material": "AAC Blocks",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 311.1333333333333,
+      "selected_backtest_mae": 311.1333333333333,
+      "before": {
+        "mae": 120.74250666666666,
+        "rmse": 140.23621445331443,
+        "r2": -2.685266451871013,
+        "wape_pct": 30.721770199449878,
+        "observations": 30
+      },
+      "after": {
+        "mae": 120.74250666666666,
+        "rmse": 140.23621445331443,
+        "r2": -2.685266451871013,
+        "wape_pct": 30.721770199449878,
+        "observations": 30
+      }
+    },
+    {
+      "site": "ISBT–Transport Nagar, Dehradun",
+      "material": "Binding Wire",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 3.5519999999999996,
+      "selected_backtest_mae": 3.5519999999999996,
+      "before": {
+        "mae": 2.975016666666666,
+        "rmse": 3.6680242207033835,
+        "r2": -1.7996614405127507,
+        "wape_pct": 30.295372284760635,
+        "observations": 30
+      },
+      "after": {
+        "mae": 2.975016666666666,
+        "rmse": 3.6680242207033835,
+        "r2": -1.7996614405127507,
+        "wape_pct": 30.295372284760635,
+        "observations": 30
+      }
+    },
+    {
+      "site": "ISBT–Transport Nagar, Dehradun",
+      "material": "Bricks",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 1287.0333333333333,
+      "selected_backtest_mae": 1287.0333333333333,
+      "before": {
+        "mae": 316.01579000000004,
+        "rmse": 354.9233429315158,
+        "r2": -2.0218829421233795,
+        "wape_pct": 28.74999999620932,
+        "observations": 30
+      },
+      "after": {
+        "mae": 316.01579000000004,
+        "rmse": 354.9233429315158,
+        "r2": -2.0218829421233795,
+        "wape_pct": 28.74999999620932,
+        "observations": 30
+      }
+    },
+    {
+      "site": "ISBT–Transport Nagar, Dehradun",
+      "material": "Cement",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 23.033333333333335,
+      "selected_backtest_mae": 23.033333333333335,
+      "before": {
+        "mae": 48.132739999999984,
+        "rmse": 58.19043855793377,
+        "r2": -1.6222742619816088,
+        "wape_pct": 22.62408956893464,
+        "observations": 30
+      },
+      "after": {
+        "mae": 48.132739999999984,
+        "rmse": 58.19043855793377,
+        "r2": -1.6222742619816088,
+        "wape_pct": 22.62408956893464,
+        "observations": 30
+      }
+    },
+    {
+      "site": "ISBT–Transport Nagar, Dehradun",
+      "material": "Coarse Aggregate",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 10.544333333333334,
+      "selected_backtest_mae": 7.97904805996312,
+      "before": {
+        "mae": 8.59829,
+        "rmse": 10.32005850479218,
+        "r2": -1.8542714533922062,
+        "wape_pct": 29.494828059550706,
+        "observations": 30
+      },
+      "after": {
+        "mae": 8.543301042510365,
+        "rmse": 10.094328693610604,
+        "r2": -1.7307745064007616,
+        "wape_pct": 29.306198710420727,
+        "observations": 30
+      }
+    },
+    {
+      "site": "ISBT–Transport Nagar, Dehradun",
+      "material": "PVC Pipes",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 33.7,
+      "selected_backtest_mae": 33.7,
+      "before": {
+        "mae": 46.889983333333326,
+        "rmse": 58.60389327909595,
+        "r2": -1.7137060447014294,
+        "wape_pct": 27.771754672283006,
+        "observations": 30
+      },
+      "after": {
+        "mae": 46.889983333333326,
+        "rmse": 58.60389327909595,
+        "r2": -1.7137060447014294,
+        "wape_pct": 27.771754672283006,
+        "observations": 30
+      }
+    },
+    {
+      "site": "ISBT–Transport Nagar, Dehradun",
+      "material": "Ready-Mix Concrete",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 3.3563333333333327,
+      "selected_backtest_mae": 3.3563333333333327,
+      "before": {
+        "mae": 1.8169100000000002,
+        "rmse": 2.1596148699092934,
+        "r2": -2.161306990552603,
+        "wape_pct": 34.66241107420643,
+        "observations": 30
+      },
+      "after": {
+        "mae": 1.8169100000000002,
+        "rmse": 2.1596148699092934,
+        "r2": -2.161306990552603,
+        "wape_pct": 34.66241107420643,
+        "observations": 30
+      }
+    },
+    {
+      "site": "ISBT–Transport Nagar, Dehradun",
+      "material": "River Sand",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 17.005000000000003,
+      "selected_backtest_mae": 10.939655018510113,
+      "before": {
+        "mae": 9.01836,
+        "rmse": 10.25767330122512,
+        "r2": -3.4045236597274258,
+        "wape_pct": 35.48169055755727,
+        "observations": 30
+      },
+      "after": {
+        "mae": 10.983959804446663,
+        "rmse": 12.616915742808967,
+        "r2": -5.663580165122209,
+        "wape_pct": 43.21511481888323,
+        "observations": 30
+      }
+    },
+    {
+      "site": "ISBT–Transport Nagar, Dehradun",
+      "material": "TMT Steel",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 76.61766666666666,
+      "selected_backtest_mae": 76.61766666666666,
+      "before": {
+        "mae": 95.1150333333333,
+        "rmse": 106.06732379168115,
+        "r2": -2.004680445861412,
+        "wape_pct": 33.198805376290686,
+        "observations": 30
+      },
+      "after": {
+        "mae": 95.1150333333333,
+        "rmse": 106.06732379168115,
+        "r2": -2.004680445861412,
+        "wape_pct": 33.198805376290686,
+        "observations": 30
+      }
+    },
+    {
+      "site": "ISBT–Transport Nagar, Dehradun",
+      "material": "Tiles",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 59.015666666666654,
+      "selected_backtest_mae": 47.76510624809696,
+      "before": {
+        "mae": 11.393603333333335,
+        "rmse": 13.785609228962887,
+        "r2": -2.155349986336382,
+        "wape_pct": 29.36987473246165,
+        "observations": 30
+      },
+      "after": {
+        "mae": 7.025085409588561,
+        "rmse": 8.484398288154436,
+        "r2": -0.19519207681625472,
+        "wape_pct": 18.10892238637353,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Jakhan, Dehradun",
+      "material": "AAC Blocks",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 353.8333333333333,
+      "selected_backtest_mae": 353.8333333333333,
+      "before": {
+        "mae": 149.04814333333334,
+        "rmse": 172.48785359486138,
+        "r2": -2.8977366850493955,
+        "wape_pct": 33.31469951886389,
+        "observations": 30
+      },
+      "after": {
+        "mae": 149.04814333333334,
+        "rmse": 172.48785359486138,
+        "r2": -2.8977366850493955,
+        "wape_pct": 33.31469951886389,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Jakhan, Dehradun",
+      "material": "Binding Wire",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 3.309,
+      "selected_backtest_mae": 3.309,
+      "before": {
+        "mae": 3.522956666666666,
+        "rmse": 4.096545105126188,
+        "r2": -2.631099748461745,
+        "wape_pct": 35.513043618510814,
+        "observations": 30
+      },
+      "after": {
+        "mae": 3.522956666666666,
+        "rmse": 4.096545105126188,
+        "r2": -2.631099748461745,
+        "wape_pct": 35.513043618510814,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Jakhan, Dehradun",
+      "material": "Bricks",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 1546.6,
+      "selected_backtest_mae": 1444.0754084358741,
+      "before": {
+        "mae": 299.68943333333334,
+        "rmse": 319.6962048479119,
+        "r2": -1.0050862701134706,
+        "wape_pct": 23.129792336638985,
+        "observations": 30
+      },
+      "after": {
+        "mae": 415.5793554258363,
+        "rmse": 502.5997836589393,
+        "r2": -3.955673622727388,
+        "wape_pct": 32.07408443961558,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Jakhan, Dehradun",
+      "material": "Cement",
+      "selected_model": "Pooled Random Forest",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 44.733333333333334,
+      "selected_backtest_mae": 39.12675390339106,
+      "before": {
+        "mae": 50.346593333333324,
+        "rmse": 57.41241672499657,
+        "r2": -0.2731613923535623,
+        "wape_pct": 18.399474366792937,
+        "observations": 30
+      },
+      "after": {
+        "mae": 46.741010546304956,
+        "rmse": 50.48919223627707,
+        "r2": 0.015380010005346945,
+        "wape_pct": 17.081791805272818,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Jakhan, Dehradun",
+      "material": "Coarse Aggregate",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 13.09966666666667,
+      "selected_backtest_mae": 10.850935015201783,
+      "before": {
+        "mae": 10.804616666666664,
+        "rmse": 13.199028133578622,
+        "r2": -1.2864699542851277,
+        "wape_pct": 27.66764056688623,
+        "observations": 30
+      },
+      "after": {
+        "mae": 7.0141016208523,
+        "rmse": 7.6714439100750536,
+        "r2": 0.2276114665667378,
+        "wape_pct": 17.96117794202376,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Jakhan, Dehradun",
+      "material": "PVC Pipes",
+      "selected_model": "Pooled Random Forest",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 39.6,
+      "selected_backtest_mae": 39.289795940670984,
+      "before": {
+        "mae": 48.12253333333333,
+        "rmse": 64.36564195953198,
+        "r2": -1.2200886040379073,
+        "wape_pct": 25.69834550243886,
+        "observations": 30
+      },
+      "after": {
+        "mae": 41.41632194398426,
+        "rmse": 47.10342273430669,
+        "r2": -0.18895941217101297,
+        "wape_pct": 22.117101429061943,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Jakhan, Dehradun",
+      "material": "Ready-Mix Concrete",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 4.277333333333333,
+      "selected_backtest_mae": 4.209539482049384,
+      "before": {
+        "mae": 2.09421,
+        "rmse": 2.38659055174252,
+        "r2": -2.006050561127632,
+        "wape_pct": 32.834506536191945,
+        "observations": 30
+      },
+      "after": {
+        "mae": 4.233771862675286,
+        "rmse": 4.778703716510327,
+        "r2": -11.052042559005601,
+        "wape_pct": 66.38007167273446,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Jakhan, Dehradun",
+      "material": "River Sand",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 13.65,
+      "selected_backtest_mae": 10.436963318796696,
+      "before": {
+        "mae": 10.33496,
+        "rmse": 11.696870716819948,
+        "r2": -2.8416584889184873,
+        "wape_pct": 36.005872446395124,
+        "observations": 30
+      },
+      "after": {
+        "mae": 9.032184614754192,
+        "rmse": 10.446794142403867,
+        "r2": -2.0643999675828613,
+        "wape_pct": 31.467145218862175,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Jakhan, Dehradun",
+      "material": "TMT Steel",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 98.99166666666666,
+      "selected_backtest_mae": 98.99166666666666,
+      "before": {
+        "mae": 94.96878000000001,
+        "rmse": 107.1900351770319,
+        "r2": -1.2095571448632607,
+        "wape_pct": 28.253337047471987,
+        "observations": 30
+      },
+      "after": {
+        "mae": 94.96878000000001,
+        "rmse": 107.1900351770319,
+        "r2": -1.2095571448632607,
+        "wape_pct": 28.253337047471987,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Jakhan, Dehradun",
+      "material": "Tiles",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 72.79299999999999,
+      "selected_backtest_mae": 72.79299999999999,
+      "before": {
+        "mae": 13.251463333333334,
+        "rmse": 16.254042585102738,
+        "r2": -1.9821208663349892,
+        "wape_pct": 27.811593796327866,
+        "observations": 30
+      },
+      "after": {
+        "mae": 13.251463333333334,
+        "rmse": 16.254042585102738,
+        "r2": -1.9821208663349892,
+        "wape_pct": 27.811593796327866,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Paltan Bazaar, Dehradun",
+      "material": "AAC Blocks",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 330.53333333333336,
+      "selected_backtest_mae": 330.53333333333336,
+      "before": {
+        "mae": 132.59795,
+        "rmse": 150.06842125302379,
+        "r2": -2.8165006758423328,
+        "wape_pct": 29.90708743747354,
+        "observations": 30
+      },
+      "after": {
+        "mae": 132.59795,
+        "rmse": 150.06842125302379,
+        "r2": -2.8165006758423328,
+        "wape_pct": 29.90708743747354,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Paltan Bazaar, Dehradun",
+      "material": "Binding Wire",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 3.4743333333333326,
+      "selected_backtest_mae": 3.4743333333333326,
+      "before": {
+        "mae": 2.3292566666666668,
+        "rmse": 2.775859078015309,
+        "r2": -1.4318900637186815,
+        "wape_pct": 23.956653075469713,
+        "observations": 30
+      },
+      "after": {
+        "mae": 2.3292566666666668,
+        "rmse": 2.775859078015309,
+        "r2": -1.4318900637186815,
+        "wape_pct": 23.956653075469713,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Paltan Bazaar, Dehradun",
+      "material": "Bricks",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 1357.3333333333333,
+      "selected_backtest_mae": 1357.3333333333333,
+      "before": {
+        "mae": 337.4687766666666,
+        "rmse": 357.74873835411773,
+        "r2": -1.026464191655264,
+        "wape_pct": 23.587476121004155,
+        "observations": 30
+      },
+      "after": {
+        "mae": 337.4687766666666,
+        "rmse": 357.74873835411773,
+        "r2": -1.026464191655264,
+        "wape_pct": 23.587476121004155,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Paltan Bazaar, Dehradun",
+      "material": "Cement",
+      "selected_model": "Pooled Random Forest",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 64.26666666666667,
+      "selected_backtest_mae": 43.283764864894785,
+      "before": {
+        "mae": 65.07626,
+        "rmse": 72.23408268205529,
+        "r2": -4.308846120806718,
+        "wape_pct": 31.691408456287455,
+        "observations": 30
+      },
+      "after": {
+        "mae": 27.90709499714457,
+        "rmse": 29.539610840595948,
+        "r2": 0.11217912438126632,
+        "wape_pct": 13.590442142540532,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Paltan Bazaar, Dehradun",
+      "material": "Coarse Aggregate",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 12.737333333333334,
+      "selected_backtest_mae": 11.768702161900608,
+      "before": {
+        "mae": 9.80079,
+        "rmse": 11.791826387530756,
+        "r2": -2.234280530792591,
+        "wape_pct": 29.76257754728148,
+        "observations": 30
+      },
+      "after": {
+        "mae": 7.630858048939014,
+        "rmse": 8.171593963196385,
+        "r2": -0.5532061143624656,
+        "wape_pct": 23.173030381616634,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Paltan Bazaar, Dehradun",
+      "material": "PVC Pipes",
+      "selected_model": "Pooled Random Forest",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 34.666666666666664,
+      "selected_backtest_mae": 34.13978403675819,
+      "before": {
+        "mae": 57.63448666666668,
+        "rmse": 76.78300135661972,
+        "r2": -1.2905474925884541,
+        "wape_pct": 29.28854185719789,
+        "observations": 30
+      },
+      "after": {
+        "mae": 49.48002922207978,
+        "rmse": 58.50523313575231,
+        "r2": -0.3298374563794333,
+        "wape_pct": 25.144631119000017,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Paltan Bazaar, Dehradun",
+      "material": "Ready-Mix Concrete",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 3.401666666666667,
+      "selected_backtest_mae": 3.358539975029613,
+      "before": {
+        "mae": 2.219626666666666,
+        "rmse": 2.499926906531469,
+        "r2": -3.3590448354826483,
+        "wape_pct": 38.17280859250494,
+        "observations": 30
+      },
+      "after": {
+        "mae": 4.1894708292691965,
+        "rmse": 4.976186534714735,
+        "r2": -16.271498442692717,
+        "wape_pct": 72.0498949085624,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Paltan Bazaar, Dehradun",
+      "material": "River Sand",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 16.288333333333334,
+      "selected_backtest_mae": 10.04155589558055,
+      "before": {
+        "mae": 10.522359999999999,
+        "rmse": 11.714947041621654,
+        "r2": -3.381374149736203,
+        "wape_pct": 34.90185446935429,
+        "observations": 30
+      },
+      "after": {
+        "mae": 7.5815382625423995,
+        "rmse": 9.200004219891165,
+        "r2": -1.7021268650243835,
+        "wape_pct": 25.147376167807984,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Paltan Bazaar, Dehradun",
+      "material": "TMT Steel",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 77.36733333333333,
+      "selected_backtest_mae": 77.36733333333333,
+      "before": {
+        "mae": 99.45359333333334,
+        "rmse": 111.14123836744248,
+        "r2": -1.8499142199498082,
+        "wape_pct": 33.13665299622263,
+        "observations": 30
+      },
+      "after": {
+        "mae": 99.45359333333334,
+        "rmse": 111.14123836744248,
+        "r2": -1.8499142199498082,
+        "wape_pct": 33.13665299622263,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Paltan Bazaar, Dehradun",
+      "material": "Tiles",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 62.41666666666666,
+      "selected_backtest_mae": 51.572811389543375,
+      "before": {
+        "mae": 13.643593333333335,
+        "rmse": 16.027058768532672,
+        "r2": -2.582636039951987,
+        "wape_pct": 28.642023100159662,
+        "observations": 30
+      },
+      "after": {
+        "mae": 11.158020246705444,
+        "rmse": 13.065556768664168,
+        "r2": -1.3809532827543758,
+        "wape_pct": 23.42405448844512,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Sahastradhara Road, Dehradun",
+      "material": "AAC Blocks",
+      "selected_model": "Pooled MLR",
+      "selected_transform": "raw",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 478.73333333333335,
+      "selected_backtest_mae": 406.2560745373457,
+      "before": {
+        "mae": 137.94020666666665,
+        "rmse": 156.67136559065924,
+        "r2": -3.4480002942595664,
+        "wape_pct": 34.510709804227616,
+        "observations": 30
+      },
+      "after": {
+        "mae": 456.70363462027615,
+        "rmse": 575.7159272751808,
+        "r2": -59.06231100719809,
+        "wape_pct": 114.2608596999083,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Sahastradhara Road, Dehradun",
+      "material": "Binding Wire",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 3.7663333333333324,
+      "selected_backtest_mae": 3.7663333333333324,
+      "before": {
+        "mae": 3.5593999999999997,
+        "rmse": 4.00849390170423,
+        "r2": -3.0280203310874994,
+        "wape_pct": 38.4890709377994,
+        "observations": 30
+      },
+      "after": {
+        "mae": 3.5593999999999997,
+        "rmse": 4.00849390170423,
+        "r2": -3.0280203310874994,
+        "wape_pct": 38.4890709377994,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Sahastradhara Road, Dehradun",
+      "material": "Bricks",
+      "selected_model": "Pooled Random Forest",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 1919.1666666666667,
+      "selected_backtest_mae": 1875.8002460758535,
+      "before": {
+        "mae": 294.0217366666666,
+        "rmse": 308.61009161480814,
+        "r2": -0.6411113384396239,
+        "wape_pct": 21.38153668549921,
+        "observations": 30
+      },
+      "after": {
+        "mae": 1477.559163769713,
+        "rmse": 1759.1464206206692,
+        "r2": -52.323884251665774,
+        "wape_pct": 107.4494893585169,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Sahastradhara Road, Dehradun",
+      "material": "Cement",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 36.233333333333334,
+      "selected_backtest_mae": 36.233333333333334,
+      "before": {
+        "mae": 51.285816666666655,
+        "rmse": 60.03037504771785,
+        "r2": -0.8610792836104857,
+        "wape_pct": 20.090623191923303,
+        "observations": 30
+      },
+      "after": {
+        "mae": 51.285816666666655,
+        "rmse": 60.03037504771785,
+        "r2": -0.8610792836104857,
+        "wape_pct": 20.090623191923303,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Sahastradhara Road, Dehradun",
+      "material": "Coarse Aggregate",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 8.186,
+      "selected_backtest_mae": 8.186,
+      "before": {
+        "mae": 12.715843333333334,
+        "rmse": 14.591353799802128,
+        "r2": -2.8118715595794814,
+        "wape_pct": 34.88285414538927,
+        "observations": 30
+      },
+      "after": {
+        "mae": 12.715843333333334,
+        "rmse": 14.591353799802128,
+        "r2": -2.8118715595794814,
+        "wape_pct": 34.88285414538927,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Sahastradhara Road, Dehradun",
+      "material": "PVC Pipes",
+      "selected_model": "Pooled Random Forest",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 47.43333333333333,
+      "selected_backtest_mae": 45.60306545754121,
+      "before": {
+        "mae": 69.38459666666664,
+        "rmse": 84.65099345311705,
+        "r2": -1.9990702999390049,
+        "wape_pct": 30.443845933572593,
+        "observations": 30
+      },
+      "after": {
+        "mae": 45.13192020478785,
+        "rmse": 53.49119921762233,
+        "r2": -0.1975321902008711,
+        "wape_pct": 19.802510808006723,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Sahastradhara Road, Dehradun",
+      "material": "Ready-Mix Concrete",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 4.582666666666667,
+      "selected_backtest_mae": 4.582666666666667,
+      "before": {
+        "mae": 2.504563333333333,
+        "rmse": 2.751166806587101,
+        "r2": -4.823346608522639,
+        "wape_pct": 42.237107566285594,
+        "observations": 30
+      },
+      "after": {
+        "mae": 2.504563333333333,
+        "rmse": 2.751166806587101,
+        "r2": -4.823346608522639,
+        "wape_pct": 42.237107566285594,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Sahastradhara Road, Dehradun",
+      "material": "River Sand",
+      "selected_model": "Pooled XGBoost",
+      "selected_transform": "log1p",
+      "fallback_to_naive": false,
+      "selection_reason": "Selected pooled candidate with the lowest eligible backtest MAE, which was strictly below Naive.",
+      "naive_backtest_mae": 20.18633333333333,
+      "selected_backtest_mae": 14.401427169007055,
+      "before": {
+        "mae": 9.285506666666667,
+        "rmse": 11.043681004266649,
+        "r2": -1.852194006284225,
+        "wape_pct": 28.546055684264548,
+        "observations": 30
+      },
+      "after": {
+        "mae": 6.8250604511359505,
+        "rmse": 8.607751391626241,
+        "r2": -0.7327295671037719,
+        "wape_pct": 20.982005902381047,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Sahastradhara Road, Dehradun",
+      "material": "TMT Steel",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 71.33866666666668,
+      "selected_backtest_mae": 71.33866666666668,
+      "before": {
+        "mae": 106.80730999999996,
+        "rmse": 120.63205922646901,
+        "r2": -2.4664992196253945,
+        "wape_pct": 33.95682659565893,
+        "observations": 30
+      },
+      "after": {
+        "mae": 106.80730999999996,
+        "rmse": 120.63205922646901,
+        "r2": -2.4664992196253945,
+        "wape_pct": 33.95682659565893,
+        "observations": 30
+      }
+    },
+    {
+      "site": "Sahastradhara Road, Dehradun",
+      "material": "Tiles",
+      "selected_model": "Naive",
+      "selected_transform": null,
+      "fallback_to_naive": true,
+      "selection_reason": "No pooled candidate strictly beat Naive on backtest MAE; used Naive.",
+      "naive_backtest_mae": 73.89000000000001,
+      "selected_backtest_mae": 73.89000000000001,
+      "before": {
+        "mae": 8.097269999999998,
+        "rmse": 9.871451590369068,
+        "r2": -1.2485010473821503,
+        "wape_pct": 20.424553545716602,
+        "observations": 30
+      },
+      "after": {
+        "mae": 8.097269999999998,
+        "rmse": 9.871451590369068,
+        "r2": -1.2485010473821503,
+        "wape_pct": 20.424553545716602,
+        "observations": 30
+      }
+    }
+  ],
+  "pooled_selected_series": 30,
+  "series_count": 60,
+  "pooled_beats_naive_in_most_series": false,
+  "dataset": {
+    "description": "Construction Materials Dehradun Dataset: 6,300 self-created rows plus 2,640 generated rows; not real observed demand.",
+    "source_rows_in_database": 8940,
+    "source_tag_counts": {
+      "historical_csv": 6300,
+      "generated_extension": 2640
+    }
+  }
+}

@@ -18,6 +18,8 @@ Requires Python 3.11 or newer.
 
 Startup creates the configured SQLite database and imports the bundled CSV once by file hash. Set INVENTORY_DB_URL to use another database path. For an existing database, take a SQLite backup before changing environment or schema settings.
 
+For Render, deploy the combined FastAPI app as a Web Service and use the persistent SQLite setup in [docs/RENDER_DEPLOYMENT.md](docs/RENDER_DEPLOYMENT.md). Set `INVENTORY_SEED_SAMPLE_OPERATIONS=true` to initialize demo stock, sales, suppliers/customers, and reorder rules on a new empty database. Without a persistent disk, treat hosted changes as temporary.
+
 XGBoost is optional; install the pinned optional requirements in requirements-optional-ml.txt to enable it. Plotly.js is bundled locally, and the app has no CDN or remote font dependency.
 
 Database initialization and CSV loading are idempotent. `scripts.train_all` runs model fitting offline; API requests use saved assessments or a lightweight Naive fallback, so a cold cache does not trigger the full model suite. Before repricing an existing copy, use the dated instructions in `docs/PRICE_SOURCES.md` and take a SQLite backup. The rebase tool updates historical prices only and validates stock-flow fields before writing.

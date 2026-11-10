@@ -5,6 +5,7 @@ Run from the project root with ``uvicorn api.main:app --reload``.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -87,6 +88,11 @@ def create_app(*, database_url: str | None = None, auto_import_source: bool = Tr
             initialize_database(database)
             if auto_import_source and config.SOURCE_CSV.exists():
                 ensure_primary_dataset_import(database, str(config.SOURCE_CSV))
+            if os.getenv("INVENTORY_SEED_SAMPLE_OPERATIONS", "").strip().lower() in {"1", "true", "yes", "on"}:
+                from scripts.load_operations import ensure_sample_operations
+
+                seeded = ensure_sample_operations(database)
+                logger.info("Sample operations startup seed: %s", seeded or "already present")
             app.state.database = database
             app.state.startup_diagnostics = _self_check(database)
             logger.info("Startup self-check: %s", app.state.startup_diagnostics)
