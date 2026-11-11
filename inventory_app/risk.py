@@ -6,6 +6,8 @@ from datetime import date, timedelta
 from statistics import NormalDist
 from typing import Any
 
+from inventory_app.inventory import local_today
+
 from inventory_app.policy_config import DEFAULT_HOLDING_RATE, DEFAULT_REVIEW_PERIOD_WEEKS, DEFAULT_SERVICE_LEVEL, MAX_COVER_DAYS, ORDER_COST_BY_MATERIAL_CLASS, MATERIAL_CLASSES, ORDER_PACK_SIZES
 
 
@@ -48,7 +50,7 @@ def calculate_inventory_risk(
     Exactly at the reorder point is Medium; exact safety-stock equality is not
     by itself High, although insufficient days of cover can still take precedence.
     """
-    today = as_of or date.today()
+    today = as_of or local_today()
     if not 0 < float(service_level) < 1:
         raise ValueError("service_level must be strictly between 0 and 1.")
     if lead_time_days is not None and (not float(lead_time_days).is_integer() or int(lead_time_days) < 0):

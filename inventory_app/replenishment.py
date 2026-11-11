@@ -8,6 +8,7 @@ from typing import Any, Iterable
 import pandas as pd
 
 from inventory_app.inventory import decimal_value
+from inventory_app.inventory import local_today
 from inventory_app.models import ReplenishmentReview
 import json
 
@@ -90,7 +91,7 @@ def calculate_replenishment(
     supplier lead-time window. An unknown stock basis prevents a numeric order.
     """
     warnings: list[str] = []
-    today = as_of or date.today()
+    today = as_of or local_today()
     if lead_time_days <= 0:
         raise ValueError("Supplier lead time must be a positive number of days.")
     if safety_stock_days < 0:

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+import json
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
@@ -22,8 +24,29 @@ from inventory_app.reorder import get_reorder_rule, stock_reorder_status
 from inventory_app.replenishment import estimate_historical_daily_rate
 from inventory_app.risk import calculate_inventory_risk, material_order_parameters
 from inventory_app.procurement import eligible_incoming_for_material
+from inventory_app.models import PlannerRun
 
 router = APIRouter(prefix="/api", tags=["replenishment"])
+
+
+def _record_planner_run(session: Session, site, material, result: dict) -> dict:
+    session.add(PlannerRun(
+        run_key=f"planner:{uuid4()}",
+        site_identifier=site.identifier,
+        material_name=material.name,
+        status=result["status"],
+        result_json=json.dumps(result, sort_keys=True, default=str),
+    ))
+    session.commit()
+    return result
+
+
+@router.get("/replenishment/history")
+def planner_history(session: Session = Depends(get_session)):
+    rows = session.query(PlannerRun).order_by(PlannerRun.created_at.desc(), PlannerRun.id.desc()).limit(50).all()
+    return {"items": [{"id": row.id, "site": row.site_identifier, "material": row.material_name,
+                       "status": row.status, "created_at": row.created_at.isoformat(),
+                       "result": json.loads(row.result_json)} for row in rows]}
 
 
 def _result(
@@ -127,7 +150,7 @@ def calculate_replenishment_api(
         raise APIProblem(409, "operational_sales_history_insufficient", str(exc), {
             "observed_periods": exc.observed_periods,
             "required_periods": exc.required_periods,
-            "source_label_if_auto": "Construction Materials Dehradun Dataset",
+            "source_label_if_auto": "Doon Ridge Materials Ledger",
         }) from exc
 
     today = local_today()
@@ -147,8 +170,7 @@ def calculate_replenishment_api(
         as_of=today,
     )
     if operational_stock is None:
-        return _result(
-            status="needs_physical_count",
+        return _record_planner_run(session, site, material, _result(      status="needs_physical_count",
             site=site.identifier,
             material=material.name,
             unit=material.unit,
@@ -162,10 +184,9 @@ def calculate_replenishment_api(
             safety_stock_days=safety_days,
             risk=_risk_result(material, on_hand=None, lead_time_days=lead_time, service_level=body.service_level, as_of=today),
             warnings=["No operational opening count is recorded. A historical stock value is never substituted."],
-        )
+        ))
     if lead_time is None:
-        return _result(
-            status="lead_time_required",
+        return _record_planner_run(session, site, material, _result(      status="lead_time_required",
             site=site.identifier,
             material=material.name,
             unit=material.unit,
@@ -179,10 +200,9 @@ def calculate_replenishment_api(
             safety_stock_days=safety_days,
             risk=_risk_result(material, on_hand=operational_stock, lead_time_days=None, service_level=body.service_level, as_of=today),
             warnings=["Enter a planning lead-time assumption or configure one on the site/material reorder rule."],
-        )
+        ))
     if lead_time > MAX_WEEKLY_FORECAST_HORIZON_DAYS:
-        return _result(
-            status="lead_time_exceeds_forecast_horizon",
+        return _record_planner_run(session, site, material, _result(      status="lead_time_exceeds_forecast_horizon",
             site=site.identifier,
             material=material.name,
             unit=material.unit,
@@ -196,7 +216,7 @@ def calculate_replenishment_api(
             safety_stock_days=safety_days,
             risk=_risk_result(material, on_hand=operational_stock, lead_time_days=lead_time, service_level=body.service_level, as_of=today),
             warnings=[f"Lead time exceeds the supported weekly forecast horizon of {MAX_WEEKLY_FORECAST_HORIZON_DAYS} days; no numeric order recommendation is shown."],
-        )
+        ))
     if not recency["is_current"]:
         latest = recency["latest_observation_date"]
         age = recency["age_days"]
@@ -206,8 +226,7 @@ def calculate_replenishment_api(
             warning = f"The latest valid observation ({latest}) is after today ({today}); verify the source dates."
         else:
             warning = f"Dataset coverage is outside the current-planning window: latest observation {latest} is {age} days old; the limit is {recency['max_age_days']} days."
-        return _result(
-            status="stale_demand_source",
+        return _record_planner_run(session, site, material, _result(      status="stale_demand_source",
             site=site.identifier,
             material=material.name,
             unit=material.unit,
@@ -221,7 +240,7 @@ def calculate_replenishment_api(
             safety_stock_days=safety_days,
             risk=_risk_result(material, on_hand=operational_stock, lead_time_days=lead_time, service_level=body.service_level, as_of=today),
             warnings=[warning, "Model evaluation remains available; no numeric replenishment recommendation is shown until the source is current."],
-        )
+        ))
 
     daily_rate, rate_warnings = estimate_historical_daily_rate(
         source_frame,
@@ -229,8 +248,7 @@ def calculate_replenishment_api(
         material=material.name,
     )
     if daily_rate is None:
-        return _result(
-            status="demand_rate_unavailable",
+        return _record_planner_run(session, site, material, _result(      status="demand_rate_unavailable",
             site=site.identifier,
             material=material.name,
             unit=material.unit,
@@ -245,7 +263,7 @@ def calculate_replenishment_api(
             risk=_risk_result(material, on_hand=operational_stock, lead_time_days=lead_time, service_level=body.service_level, as_of=today),
             warnings=rate_warnings + ["A supported historical daily-rate estimate is unavailable; no numeric recommendation is shown."],
             daily_rate_warnings=rate_warnings,
-        )
+        ))
 
     database = get_database(request)
     forecast_params = {
@@ -359,8 +377,7 @@ def calculate_replenishment_api(
         "explanation": "Shared risk calculation: lead-time demand + service-level safety stock; order-up-to/EOQ candidate rounded to the configured pack.",
         "risk": risk,
     }
-    return _result(
-        status=risk["risk_level"].title(),
+    return _record_planner_run(session, site, material, _result(  status=risk["risk_level"].title(),
         site=site.identifier,
         material=material.name,
         unit=material.unit,
@@ -378,4 +395,4 @@ def calculate_replenishment_api(
         model_name=model_name,
         daily_rate=daily_rate,
         daily_rate_warnings=rate_warnings,
-    )
+    ))

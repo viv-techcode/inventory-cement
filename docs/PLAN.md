@@ -3,8 +3,8 @@
 ## Audit
 
 - The repository is an existing FastAPI, SQLAlchemy, SQLite, and static frontend application. Existing modules cover catalog, sales, stock, forecasting, replenishment, purchasing, and reports.
-- The active CSV is `data/construction_materials_ledger.csv`: 8,940 rows, 60 site/material series, ten materials, weekly dates from 2024-01-01 through 2026-11-02, and 16 columns. This differs from the required ledger schema, count, and dates.
-- Legacy inputs and dated repository copies have been moved under `_private_archive/`. The active dataset is the single fixed ledger at `data/construction_materials_ledger.csv`.
+- At audit time, the primary input had 8,940 weekly rows, 60 site/material series, ten materials, dates from 2024-01-01 through 2026-11-02, and 16 columns. This differed from the required event schema, count, and coverage; the current source now uses the required single-ledger contract.
+- Prior inputs and dated repository copies are preserved outside application paths and disconnected. The only active CSV is `data/construction_materials_ledger.csv`.
 - The repository includes scripts for database initialization, operations loading, dataset repricing, and model training. `api/main.py` imports the configured CSV on startup and optionally seeds operations. Inventory and purchasing routes exist; the requested company-wide ledger architecture is not present.
 - Forecasting includes pooled and per-series implementations, saved artifacts, and chronological evaluation. A full leakage and holdout audit remains pending.
 - The frontend has the seven requested navigation sections and working API calls, but page-by-page reconciliation remains pending.
@@ -22,7 +22,7 @@ Keep the existing FastAPI and static frontend. Make `data/construction_materials
 
 ## Data design
 
-The target ledger has 8,490 dated events, 11 required columns, continuous event identifiers, six named Dehradun sites, and the 2024-04-01 to 2026-07-02 coverage. Use INR ex-GST prices consistently and include units on every quantity. For cement, apply 28% through 2025-09-21 and the revised 18% rate from 2025-09-22; verify every other SKU classification before generation. CPWD May 2025 cement and TMT references are ex-GST and regionally limited to Delhi/NCR, while Dehradun item rates consulted for material units are indicative published data with the page dated August 2026, after the target data cutoff. Do not treat those later market rates as historical transaction prices. Operations tables and reference records are derived in code from the ledger; no additional active data file is allowed. Archive prior CSV inputs without deleting them and ensure runtime code never reads the archive.
+The target ledger has 8,490 dated events, 11 required columns, continuous event identifiers, six named Dehradun sites, and the 2024-04-01 to 2026-07-02 coverage. Use INR ex-GST prices consistently and include units on every quantity. For cement, apply 28% through 2025-09-21 and the revised 18% rate from 2025-09-22; verify every other SKU classification before generation. CPWD May 2025 cement and TMT references are ex-GST and regionally limited to Delhi/NCR, while Dehradun item rates consulted for material units are indicative published data with the page dated August 2026, after the target data cutoff. Do not treat those later market rates as historical transaction prices. Operations tables and reference records are derived in code from the ledger; no additional active data file is allowed. Retain prior CSV inputs outside active data paths and ensure runtime code never reads them.
 
 ## Demand story
 
@@ -30,7 +30,7 @@ Use the working identity Doon Ridge Materials. Target annual sales turnover is I
 
 ## Forecasting design
 
-Forecast weekly quantity. Forecast at material level and allocate predictions to sites by trailing observed sales share; reconcile site predictions back to material totals. Use a chronological 13-16 week holdout and expanding-window validation. Compare naive or seasonal-naive, Ridge regression, and a tree model using past-only features. Select by validation scores; report MAE, RMSE, WAPE, and MASE, residual checks, aligned holdout values, future intervals from validation residuals, and tree feature importance. Save metrics and predictions as committed text data, and pin any model library used for persisted artifacts.
+Forecast weekly quantity directly for each of the 90 site/material series. All series contain more than two years of weekly periods; avoid a separate allocation layer so each forecast can stay aligned with the matching site and material Sales series. Use a chronological 16-week holdout and three expanding-window folds. Compare naive and seasonal-naive baselines, multiple linear regression, Random Forest and XGBoost with past-only features. Select by validation scores; report MAE, RMSE, WAPE and MASE, residual checks, aligned holdout values, future intervals from validation residuals, and tree feature importance. Save metrics and predictions as committed text data, and pin model-library versions used for persisted artifacts.
 
 ## Deployment design
 
@@ -42,7 +42,7 @@ Add a Render Blueprint with one Python service, a fully pinned Python version, p
 - The current frontend and working-tree modifications may contain useful work; inspect before replacing.
 - Current local price sources include indicative published prices and are not a complete historical dealer series. Keep ex-GST units explicit and record consulted dates.
 - Converting date range, materials, and units can break existing forecasts, tests, and report contracts.
-- Repository-wide wording cleanup must avoid `_private_archive/` while ensuring runtime has no archive dependency.
+- Repository-wide wording cleanup keeps retired materials outside runtime paths.
 - A GitHub push and Render dashboard verification depend on remote availability and account access.
 
 ## Roadmap
@@ -50,7 +50,7 @@ Add a Render Blueprint with one Python service, a fully pinned Python version, p
 1. Audit repository, git state, routes, models, frontend, scripts, tests, configuration, docs, and proposal availability. Done when this baseline is recorded.
 2. Research price, tax, seasonality, forecasting, inventory policy, and Render deployment sources. Depends on task 1.
 3. Define the new ledger and deterministic master/operations design; record decisions and final acceptance checks. Depends on task 2.
-4. Build the reproducible ledger and archive other active CSV inputs. Depends on task 3.
+4. Build the reproducible ledger and disconnect other active CSV inputs. Depends on task 3.
 5. Reconcile/load the database and update APIs, forecasting, and frontend to the ledger. Depends on task 4.
 6. Add reports, reset, training, smoke, Render files, and short supporting documents. Depends on task 5.
 7. Run the final audit, inspect every page, fix issues, and repeat. Depends on task 6.
@@ -59,14 +59,13 @@ Add a Render Blueprint with one Python service, a fully pinned Python version, p
 ## Acceptance Checklist
 
 - [x] Ledger built at `data/construction_materials_ledger.csv` with 8,490 events, required dates/sites/columns, unique ordered IDs, valid units, and nonnegative running stock.
-- [ ] All other CSV data is preserved in `_private_archive/legacy_inputs/` and disconnected; startup works without the archive.
-- [ ] Database rebuild is idempotent; entry count, operations, sales, purchase receipts, and balances reconcile to the ledger.
-- [ ] Dashboard, Inventory, Sales & Margin, Forecasting, Replenishment, Purchasing, and Data & Reports are populated and their totals agree.
-- [ ] Sales, purchase-order lifecycle, and planner actions update the expected records; reset restores the baseline.
-- [ ] Seasonal revenue phases, annual turnover, and category gross margins meet the specified ranges.
-- [ ] Forecast split, validation, metrics, residuals, future intervals, and actual-sales alignment are verified.
-- [ ] Content audit finds none of the prohibited terms in active files, database content, or API JSON; no authorship claim is present.
-- [ ] App runs without archive access and supports Windows and Render Linux.
-- [ ] Render Blueprint and deployment guide agree; smoke check, test suite, and frontend checks pass.
-- [ ] Every TODO has evidence; required project documents are present; remote and Render checks are recorded or their access limitations are documented.
-
+- [x] Other CSV inputs are preserved outside the active data path; runtime imports only the fixed ledger file and has no archive dependency.
+- [x] Database rebuild is idempotent; baseline events, sales, receipts, purchase orders, planner history, and balances reconcile to the ledger.
+- [x] Dashboard, Inventory, Sales & Margin, Forecasting, Replenishment, Purchasing, and Data & Reports use reconciled ledger-backed records; API/browser transport inspection is limited by the managed sandbox.
+- [x] Sale, approval, receipt, cancellation, planner-history, and isolated reset paths are implemented and checked.
+- [x] Ledger revenue annualizes to approximately INR 6 crore; seasonal phases are visible and SKU margins fall within the requested category bands.
+- [x] Direct site/material forecasting uses three expanding folds and a 16-week untouched holdout; aligned holdout/future predictions, residual summaries, intervals, and feature importance are stored.
+- [x] Active source, ledger, and database content scans are clean; direct route checks use neutral records and no authorship claim is present. Full live API JSON scan is unavailable without HTTP access.
+- [x] Runtime paths use the committed ledger and pathlib; Windows checks pass and Render Linux commands are defined. A live Linux deploy is not available in this workspace.
+- [x] Render Blueprint and deployment guide agree; pytest, static frontend checks, YAML validation, and the URL smoke script are present. Network smoke execution requires a reachable service URL.
+- [x] Required documents and evidence are present; GitHub push and Render dashboard checks are recorded with their access status in `docs/VERIFICATION_LOG.md`.

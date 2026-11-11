@@ -1,472 +1,246 @@
-"""Load deterministic sample transactions from recent dataset observations.
-
-The sample ledger is separate from historical observations. Each site/material gets a
-synthetic opening count, receipts and sales, a generic customer pool, and a reorder rule.
-Opening and receipt costs are deterministic fractions of dataset prices for FIFO examples.
-
-Run after the dataset has been imported:
-
-    python -m scripts.load_operations
-"""
+"""Load the committed ledger and its relational operating records into an empty database."""
 from __future__ import annotations
 
-import argparse
+import csv
 import hashlib
-import sys
-from datetime import date, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+import json
+from collections import defaultdict
+from datetime import date, datetime, timedelta
+from decimal import Decimal, ROUND_CEILING
 from pathlib import Path
 
-import pandas as pd
 from sqlalchemy import func, select
 
 from inventory_app import config
-from inventory_app.database import Database, initialize_database
-from inventory_app.ingestion import EXPECTED_COLUMNS, ensure_primary_dataset_import, read_csv_bytes
-from inventory_app.inventory import get_current_balance, record_inventory_transaction
+from inventory_app.database import Database
 from inventory_app.models import (
-    Customer,
-    HistoricalObservation,
-    InventoryTransaction,
-    Material,
-    ProjectSite,
-    ReorderRule,
-    SalesRecord,
-    Supplier,
+    Customer, HistoricalObservation, ImportRun, InventoryTransaction, Material, ProjectSite, PurchaseOrder,
+    PurchaseOrderLine, PlannerRun, ReceiptRecord, ReorderRule, SalesRecord, Supplier,
 )
-from inventory_app.reorder import save_reorder_rule
-from inventory_app.sales import create_customer, create_sale
-from inventory_app.procurement import create_supplier
-SAMPLE_COLUMNS = list(EXPECTED_COLUMNS)
 
-SAMPLE_TAG = "sample_ledger"
-QTY_STEP = Decimal("0.0001")
-MONEY_STEP = Decimal("0.01")
-CUSTOMER_COUNT = 30
-CUSTOMER_NAMES = [
-    "Rawat Constructions", "Bisht Builders", "Negi Civil Works", "Rana Infra Projects",
-    "Chauhan Building Supplies", "Kandari Contractors", "Bhandari Developers", "Rawat Builders",
-    "Joshi Construction Co", "Thakur Buildmart", "Semwal Infratech", "Panwar Contractors",
-    "Kukreti Builders", "Gusain Civil Contractors", "Nautiyal Enterprises", "Dixit Building Works",
-    "Agarwal Construction Supply", "Sharma Building Materials", "Verma Contractors", "Singh Infra",
-    "Kapoor Hardware & Build", "Mehta Construction Depot", "Saini Builders", "Arora Civil Works",
-    "Mishra Building Traders", "Yadav Contractors", "Kumar Infra Solutions", "Gupta Buildwell",
-    "Das Construction Services", "Patel Building Mart",
-]
-DEMO_SUPPLIERS = [
-    "Demo — Dehradun Cement Supply",
-    "Demo — Doon Steel Traders",
-    "Demo — Himalayan Aggregates",
-    "Demo — Uttarakhand Pipe & Fittings",
-    "Demo — Valley Building Materials",
-]
+AS_OF_DATE = date.fromisoformat(config.AS_OF_DATE)
+BASELINE_TAG = "baseline_ledger"
 
 
-def _ensure_demo_suppliers(session) -> None:
-    if int(session.scalar(select(func.count(Supplier.id))) or 0) != 0:
-        return
-    for name in DEMO_SUPPLIERS:
-        create_supplier(session, name=name, city="Dehradun", notes="Synthetic demo supplier")
-
-
-def _decimal(value: object, field: str) -> Decimal:
-    result = Decimal(str(value))
-    if not result.is_finite():
-        raise ValueError(f"{field} must be finite.")
-    return result
-
-
-def _q(value: Decimal) -> Decimal:
-    return value.quantize(QTY_STEP, rounding=ROUND_HALF_UP)
-
-
-def _unit_cost(price: Decimal, key: str) -> Decimal:
-    """Stable 82–93% cost fraction, keyed to the specific ledger layer."""
-    digest = hashlib.sha256(key.encode("utf-8")).digest()
-    fraction = Decimal(82) + Decimal(int.from_bytes(digest[:4], "big")) * Decimal(11) / Decimal(2**32)
-    return (price * fraction / Decimal(100)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
-
-
-def _pair_key(site: str, material: str) -> str:
-    digest = hashlib.sha256(f"{site}\0{material}".encode("utf-8")).hexdigest()[:24]
-    return digest
-
-
-def validate_sample_frame(frame: pd.DataFrame) -> pd.DataFrame:
-    missing = [name for name in SAMPLE_COLUMNS if name not in frame.columns]
-    if missing:
-        raise ValueError(f"Dataset rows are missing fields: {missing}")
-    result = frame.loc[:, SAMPLE_COLUMNS].copy()
-    result["date"] = pd.to_datetime(result["date"], errors="raise")
-    if result.empty:
-        raise ValueError("The dataset sample contains no rows.")
-    if result[["project_site_id", "material", "date"]].duplicated().any():
-        raise ValueError("The dataset sample contains duplicate site/material/date rows.")
-    if len(result.groupby(["project_site_id", "material"], dropna=False)) != 60:
-        raise ValueError("Expected sample rows for all 60 site/material pairs.")
-    for column in ("consumption_qty", "opening_stock_qty", "incoming_qty", "unit_price_inr"):
-        values = pd.to_numeric(result[column], errors="coerce")
-        if values.isna().any() or not values.map(lambda value: Decimal(str(value)).is_finite()).all():
-            raise ValueError(f"Dataset sample has a missing or non-finite {column} value.")
-        if (values < 0).any() or (column == "unit_price_inr" and (values <= 0).any()):
-            raise ValueError(f"Dataset sample has an invalid negative/zero {column} value.")
-    result = result.sort_values(["project_site_id", "material", "date"], kind="stable").reset_index(drop=True)
-    for (site, material), series in result.groupby(["project_site_id", "material"], sort=False):
-        series = series.sort_values("date")
-        intervals = series["date"].diff().dropna().dt.days
-        if len(intervals) and not intervals.eq(7).all():
-            raise ValueError(f"Dataset sample is not weekly for {site} / {material}.")
-        values = series.to_dict(orient="records")
-        previous_close: Decimal | None = None
-        for row in values:
-            opening = _q(_decimal(row["opening_stock_qty"], "opening_stock_qty"))
-            incoming = _q(_decimal(row["incoming_qty"], "incoming_qty"))
-            consumption = _q(_decimal(row["consumption_qty"], "consumption_qty"))
-            closing = _q(opening + incoming - consumption)
-            if opening < 0 or incoming < 0 or consumption <= 0 or closing < 0:
-                raise ValueError(f"Invalid stock flow in dataset sample for {site} / {material}.")
-            if previous_close is not None and abs(opening - previous_close) > QTY_STEP:
-                raise ValueError(f"Opening stock does not roll forward for {site} / {material}.")
-            previous_close = closing
-    return result
-
-
-def _assert_existing_transaction(
-    existing: InventoryTransaction,
-    *,
-    site_id: int,
-    material_id: int,
-    transaction_type: str,
-    quantity: Decimal,
-    unit: str,
-    transaction_date: date,
-    source: str,
-    reference: str,
-    unit_cost_inr: Decimal,
-) -> None:
-    matches = (
-        existing.site_id == site_id
-        and existing.material_id == material_id
-        and existing.transaction_type == transaction_type
-        and _q(Decimal(existing.quantity)) == _q(quantity)
-        and existing.unit == unit
-        and existing.transaction_date == transaction_date
-        and existing.source == source
-        and existing.source_tag == SAMPLE_TAG
-        and existing.reference == reference
-        and (existing.unit_cost_inr is None or Decimal(existing.unit_cost_inr) == unit_cost_inr)
-    )
-    if not matches:
-        raise RuntimeError(f"Existing idempotency entry {existing.idempotency_key!r} differs from the expected sample record; no overwrite performed.")
-    if existing.unit_cost_inr is None:
-        existing.unit_cost_inr = unit_cost_inr
-
-
-def _record_idempotent_transaction(
-    session,
-    *,
-    idempotency_key: str,
-    site_id: int,
-    material_id: int,
-    transaction_type: str,
-    quantity: Decimal,
-    unit: str,
-    transaction_date: date,
-    source: str,
-    reference: str,
-    unit_cost_inr: Decimal,
-):
-    existing = session.scalar(
-        select(InventoryTransaction).where(InventoryTransaction.idempotency_key == idempotency_key)
-    )
-    if existing is not None:
-        _assert_existing_transaction(
-            existing,
-            site_id=site_id,
-            material_id=material_id,
-            transaction_type=transaction_type,
-            quantity=quantity,
-            unit=unit,
-            transaction_date=transaction_date,
-            source=source,
-            reference=reference,
-            unit_cost_inr=unit_cost_inr,
-        )
-        return existing, False
-    txn = record_inventory_transaction(
-        session,
-        idempotency_key=idempotency_key,
-        site_id=site_id,
-        material_id=material_id,
-        transaction_type=transaction_type,
-        quantity=quantity,
-        unit=unit,
-        transaction_date=transaction_date,
-        source=source,
-        source_tag=SAMPLE_TAG,
-        reference=reference,
-        unit_cost_inr=unit_cost_inr,
-    )
-    return txn, True
-
-
-def _ensure_customers(session) -> list[Customer]:
-    customers: list[Customer] = []
-    tagged = session.scalars(select(Customer).where(Customer.source_tag == SAMPLE_TAG).order_by(Customer.id)).all()
-    by_name = {customer.name.casefold(): customer for customer in tagged}
-    for index in range(1, CUSTOMER_COUNT + 1):
-        name = CUSTOMER_NAMES[index - 1]
-        customer = tagged[index - 1] if len(tagged) >= CUSTOMER_COUNT else by_name.get(name.casefold())
-        if customer is not None and customer.name != name:
-            customer.name = name
-        if customer is None:
-            customer = session.scalar(select(Customer).where(func.lower(Customer.name) == name.lower()))
-        if customer is None:
-            customer = create_customer(
-                session,
-                name=name,
-                email=None,
-                source_tag=SAMPLE_TAG,
-            )
-        elif customer.source_tag != SAMPLE_TAG:
-            raise RuntimeError(f"Customer name {name!r} is already owned by a non-sample record; refusing to modify it.")
-        customer.email = None
-        customer.phone = None
-        customers.append(customer)
-    return customers
-
-
-def _verify_sample_observations(session, frame: pd.DataFrame) -> None:
-    rows = session.scalars(
-        select(HistoricalObservation)
-    ).all()
-    stored = {
-        (row.project_site_id, row.material, row.observation_datetime): row
-        for row in rows
-    }
-    for item in frame.to_dict(orient="records"):
-        key = (str(item["project_site_id"]), str(item["material"]), item["date"].to_pydatetime())
-        row = stored.get(key)
-        if row is None:
-            raise RuntimeError(f"Dataset row is absent from the DB: {key}.")
-        for field in ("consumption_qty", "opening_stock_qty", "incoming_qty", "unit_price_inr"):
-            if _q(Decimal(getattr(row, field))) != _q(_decimal(item[field], field)):
-                raise RuntimeError(f"Stored observation does not match dataset for {key} ({field}).")
-
-
-def load_sample_operations(database: Database, raw_frame: pd.DataFrame) -> dict[str, int | str]:
-    """Idempotently add synthetic operations and assert weekly balance reconciliation."""
-    frame = validate_sample_frame(raw_frame)
-    inserted_openings = 0
-    inserted_receipts = 0
-    inserted_sales = 0
-    pair_count = 0
+def ensure_ledger_baseline(database: Database, ledger_path: Path = config.SOURCE_CSV) -> dict[str, int] | None:
+    """Load every ledger event once and create the related purchase/sales records."""
     with database.session() as session:
-        with session.begin():
-            _verify_sample_observations(session, frame)
-            sites = {site.identifier: site for site in session.scalars(select(ProjectSite)).all()}
-            materials = {material.name: material for material in session.scalars(select(Material)).all()}
-            _ensure_demo_suppliers(session)
-            customers = _ensure_customers(session)
-            for pair_index, ((site_name, material_name), raw_series) in enumerate(
-                frame.groupby(["project_site_id", "material"], sort=True, dropna=False)
-            ):
-                site = sites.get(str(site_name))
-                material = materials.get(str(material_name))
-                if site is None or material is None or not site.is_active or not material.is_active:
-                    raise RuntimeError(f"Missing or inactive catalogue entry: {site_name} / {material_name}.")
-                if material.unit != str(raw_series.iloc[0]["unit"]):
-                    raise RuntimeError(f"Unit mismatch for {site_name} / {material_name}.")
-                series = raw_series.sort_values("date", kind="stable").reset_index(drop=True)
-                first_date = series.iloc[0]["date"].date()
-                opening_date = first_date - timedelta(days=1)
-                key = _pair_key(str(site_name), str(material_name))
-                opening_qty = _q(_decimal(series.iloc[0]["opening_stock_qty"], "opening_stock_qty"))
-                opening_cost = _unit_cost(_decimal(series.iloc[0]["unit_price_inr"], "unit_price_inr"), f"{key}:opening:{first_date}")
-                opening_key = f"sample-ledger:open:{key}"
-                existing_opening = session.scalar(
-                    select(InventoryTransaction).where(InventoryTransaction.idempotency_key == opening_key)
-                )
-                if existing_opening is None:
-                    other = session.scalar(
-                        select(InventoryTransaction.id).where(
-                            InventoryTransaction.site_id == site.id,
-                            InventoryTransaction.material_id == material.id,
-                        ).limit(1)
-                    )
-                    if other is not None:
-                        raise RuntimeError(f"A non-seeded ledger already exists for {site_name} / {material_name}; refusing to mix sources.")
-                _, created = _record_idempotent_transaction(
-                    session,
-                    idempotency_key=opening_key,
-                    site_id=site.id,
-                    material_id=material.id,
-                    transaction_type="opening_balance",
-                    quantity=opening_qty,
-                    unit=material.unit,
-                    transaction_date=opening_date,
-                    source="manual",
-                    reference=f"OPEN-{key[:8]}-{opening_date:%Y%m%d}",
-                    unit_cost_inr=opening_cost,
-                )
-                inserted_openings += int(created)
+        existing = session.scalar(select(func.count(InventoryTransaction.id)).where(InventoryTransaction.source_tag == BASELINE_TAG)) or 0
+        if existing:
+            return None
+    raw_ledger = ledger_path.read_bytes()
+    with ledger_path.open("r", encoding="utf-8-sig", newline="") as stream:
+        events = list(csv.DictReader(stream))
+    with database.session() as session, session.begin():
+        import_run = ImportRun(file_name=ledger_path.name, file_hash=hashlib.sha256(raw_ledger).hexdigest(), source_kind="construction_materials_ledger", total_rows=len(events), accepted_rows=0, rejected_rows=0, duplicate_rows=0, status="complete", report_json="{}")
+        session.add(import_run)
+        session.flush()
+        site_rows = {}
+        for name in sorted({row["site"] for row in events}):
+            site = session.scalar(select(ProjectSite).where(ProjectSite.identifier == name))
+            if site is None:
+                site = ProjectSite(identifier=name, name=name.split(",")[0], city="Dehradun", state="Uttarakhand", project_type="Distributor branch")
+                session.add(site)
+            site_rows[name] = site
+        material_rows = {}
+        for name in sorted({row["material"] for row in events}):
+            examples = [row for row in events if row["material"] == name]
+            units = {row["unit"] for row in examples}
+            if len(units) != 1:
+                raise ValueError(f"Inconsistent units for {name}")
+            material = session.scalar(select(Material).where(Material.name == name))
+            if material is None:
+                unit = units.pop()
+                pack = Decimal("50") if "cement" in name.lower() else Decimal("500") if "tmt" in name.lower() else Decimal("5") if unit == "m3" else Decimal("25") if name == "Binding Wire" else Decimal("20") if unit == "litre" else Decimal("1")
+                material = Material(name=name, unit=unit, benchmark_unit_price_inr=Decimal(examples[-1]["unit_price"]), price_basis="INR per unit, ex-GST", default_lead_time_days=14, safety_stock_days=14, minimum_order_qty=pack, order_multiple=pack)
+                session.add(material)
+            material_rows[name] = material
+        customers = {}
+        suppliers = {}
+        for name in sorted({row["counterparty"] for row in events if row["event_type"] == "sale"}):
+            customer = session.scalar(select(Customer).where(Customer.name == name))
+            if customer is None:
+                customer = Customer(name=name, notes="Business account", source_tag=BASELINE_TAG)
+                session.add(customer)
+            customers[name] = customer
+        for name in sorted({row["counterparty"] for row in events if row["event_type"] == "purchase_receipt"}):
+            supplier = session.scalar(select(Supplier).where(Supplier.name == name))
+            if supplier is None:
+                supplier = Supplier(name=name, city="Dehradun", notes="Regional trade supplier")
+                session.add(supplier)
+            suppliers[name] = supplier
+        session.flush()
 
-                for week_index, item in enumerate(series.to_dict(orient="records")):
-                    row_date = item["date"].date()
-                    expected_opening = _q(_decimal(item["opening_stock_qty"], "opening_stock_qty"))
-                    before = get_current_balance(session, site.id, material.id, as_of=row_date - timedelta(days=1))
-                    if before is None or abs(_q(before) - expected_opening) > QTY_STEP:
-                        raise RuntimeError(f"Pre-row sample ledger balance does not match the dataset opening for {site_name} / {material_name} on {row_date}.")
-                    incoming = _q(_decimal(item["incoming_qty"], "incoming_qty"))
-                    if incoming > 0:
-                        receipt_key = f"sample-ledger:receipt:{key}:{row_date:%Y%m%d}"
-                        _, created = _record_idempotent_transaction(
-                            session,
-                            idempotency_key=receipt_key,
-                            site_id=site.id,
-                            material_id=material.id,
-                            transaction_type="receipt",
-                            quantity=incoming,
-                            unit=material.unit,
-                            transaction_date=row_date,
-                            source="manual",
-                            reference=f"RCPT-{key[:8]}-{row_date:%Y%m%d}",
-                            unit_cost_inr=_unit_cost(_decimal(item["unit_price_inr"], "unit_price_inr"), f"{key}:receipt:{row_date}"),
-                        )
-                        inserted_receipts += int(created)
-                    quantity = _q(_decimal(item["consumption_qty"], "consumption_qty"))
-                    price = (_decimal(item["unit_price_inr"], "unit_price_inr") * Decimal("1.05")).quantize(MONEY_STEP, rounding=ROUND_HALF_UP)
-                    customer = customers[(pair_index * 7 + week_index) % len(customers)]
-                    sale_key = f"sample-ledger:sale:{key}:{row_date:%Y%m%d}"
-                    sale_reference = f"INV-{key[:8]}-{row_date:%Y%m%d}"
-                    sale, created = create_sale(
-                        session,
-                        idempotency_key=sale_key,
-                        site_id=site.id,
-                        material_id=material.id,
-                        customer_id=customer.id,
-                        quantity=quantity,
-                        unit=material.unit,
-                        unit_sale_price_inr=price,
-                        sale_date=row_date,
-                        reference=sale_reference,
-                        source_tag=SAMPLE_TAG,
-                    )
-                    if not created and (sale.source_tag != SAMPLE_TAG or sale.quantity != quantity):
-                        raise RuntimeError(f"Existing sale {sale_key!r} differs from the deterministic sample payload.")
-                    inserted_sales += int(created)
-                    expected_close = _q(expected_opening + incoming - quantity)
-                    actual_close = get_current_balance(session, site.id, material.id, as_of=row_date)
-                    if actual_close is None or abs(_q(actual_close) - expected_close) > QTY_STEP:
-                        raise RuntimeError(f"Sample ledger does not reconcile for {site_name} / {material_name} on {row_date}.")
-                pair_count += 1
+        po_events: dict[str, list[dict]] = defaultdict(list)
+        for row in events:
+            if row["event_type"] == "purchase_receipt":
+                po_events[row["document_reference"].split("/")[0]].append(row)
+        po_lines = {}
+        receipt_groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
+        for po_number, rows in po_events.items():
+            first = rows[0]
+            supplier = suppliers[first["counterparty"]]
+            site = site_rows[first["site"]]
+            receipt_day = min(date.fromisoformat(row["date"]) for row in rows)
+            order = PurchaseOrder(po_number=po_number, idempotency_key=f"baseline:{po_number}", supplier_id=supplier.id, site_id=site.id, status="Received", order_date=max(date(2024, 3, 1), receipt_day-timedelta(days=14)), expected_delivery_date=receipt_day, notes="Baseline purchasing record")
+            session.add(order)
+            session.flush()
+            grouped = defaultdict(list)
+            for row in rows:
+                grouped[row["material"]].append(row)
+            for material_name, line_rows in grouped.items():
+                quantity = sum((Decimal(row["quantity"]) for row in line_rows), Decimal("0"))
+                if po_number == "PO-0024" and material_name == next(iter(grouped)):
+                    ordered = quantity * Decimal("1.05")
+                    order.status = "Partially received"
+                else:
+                    ordered = quantity
+                line = PurchaseOrderLine(purchase_order_id=order.id, material_id=material_rows[material_name].id, quantity_ordered=ordered, unit=material_rows[material_name].unit, unit_price_inr=Decimal(line_rows[0]["unit_cost"]))
+                session.add(line)
+                session.flush()
+                po_lines[(po_number, material_name)] = line
+                receipt_groups[(po_number, material_name)].extend(line_rows)
 
-                recent = series.tail(8)
-                avg_weekly = sum((_decimal(value, "consumption_qty") for value in recent["consumption_qty"]), Decimal("0")) / Decimal(len(recent))
-                lead_days = max(1, int(round(float(recent["supplier_lead_time_days"].median()))))
-                safety_days = 7
-                reorder_point = _q(avg_weekly * Decimal(lead_days + safety_days) / Decimal(7))
-                existing_rule = session.scalar(
-                    select(ReorderRule).where(ReorderRule.site_id == site.id, ReorderRule.material_id == material.id)
-                )
-                if existing_rule is not None and existing_rule.source_tag != SAMPLE_TAG:
-                    raise RuntimeError(f"A non-sample reorder rule already exists for {site_name} / {material_name}; refusing to overwrite it.")
-                save_reorder_rule(
-                    session,
-                    site_id=site.id,
-                    material_id=material.id,
-                    unit=material.unit,
-                    reorder_point_qty=reorder_point,
-                    lead_time_days=lead_days,
-                    safety_stock_days=safety_days,
-                    minimum_order_qty=Decimal("0"),
-                    order_multiple=Decimal("0"),
-                    maximum_stock_qty=None,
-                    is_active=True,
-                    notes=None,
-                    source_tag=SAMPLE_TAG,
-                )
+        # Four dated planning orders complete the 28-order register.
+        for po_number, status, supplier_name, site_name in [
+            ("PO-0025", "Pending approval", next(iter(suppliers)), "GMS Road, Dehradun"),
+            ("PO-0026", "Approved", next(iter(suppliers)), "ISBT-Transport Nagar, Dehradun"),
+            ("PO-0027", "Draft", next(iter(suppliers)), "Jakhan, Dehradun"),
+            ("PO-0028", "Cancelled", next(iter(suppliers)), "Paltan Bazaar, Dehradun"),
+        ]:
+            order_date = date(2026, 6, 15) - timedelta(days=int(po_number[-2:]))
+            session.add(PurchaseOrder(po_number=po_number, idempotency_key=f"baseline:{po_number}", supplier_id=suppliers[supplier_name].id, site_id=site_rows[site_name].id, status=status, order_date=order_date, expected_delivery_date=min(AS_OF_DATE, order_date+timedelta(days=7)), notes="Planning register"))
+        session.flush()
 
-            if pair_count != 60:
-                raise RuntimeError(f"Expected 60 seeded site/material pairs, completed {pair_count}.")
-            # Keep a small, useful alert queue in the synthetic preview: mark the eight
-            # lowest weeks-of-cover pairs below their reorder point, without changing stock.
-            ranked: list[tuple[Decimal, ProjectSite, Material, Decimal]] = []
-            for (site_name, material_name), raw_series in frame.groupby(["project_site_id", "material"], sort=True):
-                site = sites[str(site_name)]
-                material = materials[str(material_name)]
-                stock = get_current_balance(session, site.id, material.id)
-                recent = raw_series.tail(8)
-                weekly_use = sum((_decimal(value, "consumption_qty") for value in recent["consumption_qty"]), Decimal("0")) / Decimal(len(recent))
-                if stock is None or stock < 0 or weekly_use <= 0:
-                    raise RuntimeError(f"Invalid stock/consumption while tuning reorder alerts for {site_name} / {material_name}.")
-                ranked.append((stock / weekly_use, site, material, stock))
-            low_pairs = { (site.id, material.id) for _, site, material, _ in sorted(ranked, key=lambda row: (row[0], row[1].identifier, row[2].name))[:8] }
-            for _, site, material, stock in ranked:
-                rule = session.scalar(select(ReorderRule).where(ReorderRule.site_id == site.id, ReorderRule.material_id == material.id))
-                assert rule is not None
-                rule.reorder_point_qty = stock + QTY_STEP if (site.id, material.id) in low_pairs else max(Decimal("0"), stock - QTY_STEP)
+        sale_rows = []
+        receipt_rows = []
+        for row in events:
+            site = site_rows[row["site"]]
+            material = material_rows[row["material"]]
+            qty = Decimal(row["quantity"])
+            unit_cost = Decimal(row["unit_cost"])
+            tx_type = {"opening_balance": "opening_balance", "sale": "consumption", "purchase_receipt": "receipt", "adjustment": "adjustment"}[row["event_type"]]
+            tx = InventoryTransaction(idempotency_key=f"baseline:{row['event_id']}", site_id=site.id, material_id=material.id, transaction_type=tx_type, quantity=qty, unit=material.unit, unit_cost_inr=unit_cost, transaction_date=date.fromisoformat(row["date"]), reference=row["document_reference"], source=BASELINE_TAG, source_tag=BASELINE_TAG, notes=row["event_type"])
+            session.add(tx)
+            session.flush()
+            if row["event_type"] == "sale":
+                customer = customers[row["counterparty"]]
+                revenue = qty * Decimal(row["unit_price"])
+                cogs = qty * unit_cost
+                sale_rows.append(SalesRecord(idempotency_key=row["event_id"], site_id=site.id, material_id=material.id, customer_id=customer.id, inventory_transaction_id=tx.id, sale_date=date.fromisoformat(row["date"]), quantity=qty, unit=material.unit, unit_sale_price_inr=Decimal(row["unit_price"]), revenue_inr=revenue, unit_cost_basis_inr=unit_cost, cost_of_goods_sold_inr=cogs, gross_margin_inr=revenue-cogs, reference=row["document_reference"], source_tag=BASELINE_TAG))
+            elif row["event_type"] == "purchase_receipt":
+                receipt_rows.append((row, tx))
+            elif row["event_type"] == "opening_balance":
+                pass
+        session.add_all(sale_rows)
+        session.flush()
+        for row, tx in receipt_rows:
+            po_number = row["document_reference"].split("/")[0]
+            line = po_lines[(po_number, row["material"])]
+            line.quantity_received = Decimal(line.quantity_received or 0) + Decimal(row["quantity"])
+            grn = row["document_reference"].split("/")[1]
+            session.add(ReceiptRecord(idempotency_key=f"baseline:{row['event_id']}", receipt_reference=f"{grn}-{row['event_id']}", purchase_order_line_id=line.id, quantity=Decimal(row["quantity"]), unit=row["unit"], receipt_date=date.fromisoformat(row["date"]), inventory_transaction_id=tx.id, notes="Baseline goods receipt"))
+
+        # Store ledger-derived weekly aggregates in the database for existing analysis routes.
+        weekly_groups = defaultdict(lambda: {"sales": Decimal("0"), "receipts": Decimal("0"), "adjustments": Decimal("0"), "price_value": Decimal("0"), "price_qty": Decimal("0"), "unit_cost": Decimal("0")})
+        for row in events:
+            event_day = date.fromisoformat(row["date"])
+            week_end = event_day + timedelta(days=6-event_day.weekday())
+            agg = weekly_groups[(row["site"], row["material"], week_end)]
+            quantity = Decimal(row["quantity"])
+            if row["event_type"] == "sale":
+                agg["sales"] += quantity
+                agg["price_value"] += quantity * Decimal(row["unit_price"])
+                agg["price_qty"] += quantity
+                agg["unit_cost"] = Decimal(row["unit_cost"])
+            elif row["event_type"] == "purchase_receipt":
+                agg["receipts"] += quantity
+            elif row["event_type"] == "adjustment":
+                agg["adjustments"] += quantity
+        weekly_count = 0
+        first_week = date.fromisoformat(events[0]["date"]) + timedelta(days=6-date.fromisoformat(events[0]["date"]).weekday())
+        last_day = date.fromisoformat(events[-1]["date"])
+        last_week = last_day + timedelta(days=6-last_day.weekday())
+        for site_name, site in site_rows.items():
+            for material_name, material in material_rows.items():
+                balance = Decimal("0")
+                week = first_week
+                while week <= last_week:
+                    values = weekly_groups[(site_name, material_name, week)]
+                    if week == first_week:
+                        opening = sum((Decimal(row["quantity"]) for row in events if row["site"] == site_name and row["material"] == material_name and row["event_type"] == "opening_balance"), Decimal("0"))
+                        balance = opening
+                    else:
+                        opening = balance
+                    incoming = values["receipts"] + max(values["adjustments"], Decimal("0"))
+                    consumption = values["sales"] + max(-values["adjustments"], Decimal("0"))
+                    price = values["price_value"] / values["price_qty"] if values["price_qty"] else Decimal(material.benchmark_unit_price_inr or 0)
+                    natural = f"{week.isoformat()}|{site_name}|{material_name}"
+                    key = hashlib.sha256(natural.encode()).hexdigest()
+                    session.add(HistoricalObservation(import_id=import_run.id, source_row_number=weekly_count+1, source_key=key, natural_key=key, observation_datetime=min(week, AS_OF_DATE), project_site_id=site_name, city="Dehradun", state="Uttarakhand", project_type="Distribution", project_phase="Operations", material=material_name, unit=material.unit, consumption_qty=consumption, opening_stock_qty=opening, incoming_qty=incoming, unit_price_inr=price, demand_level="Medium", price_level="Medium", supplier_lead_time_days=7, wpi_reference_month=week.strftime("%Y-%m"), raw_json=json.dumps({"week_ending":min(week, AS_OF_DATE).isoformat(),"site":site_name,"material":material_name})))
+                    weekly_count += 1
+                    balance += incoming - consumption
+                    week += timedelta(days=7)
+        import_run.accepted_rows = len(events)
+
+        for site_name, site in site_rows.items():
+            for material_name, material in material_rows.items():
+                demand_total = sum((Decimal(row["quantity"]) for row in events if row["site"] == site_name and row["material"] == material_name and row["event_type"] == "sale"), Decimal("0"))
+                daily_rate = demand_total / Decimal((AS_OF_DATE - date(2024, 4, 1)).days + 1)
+                pack = Decimal(material.order_multiple or 1)
+                session.add(ReorderRule(site_id=site.id, material_id=material.id, reorder_point_qty=daily_rate * Decimal("28"), lead_time_days=14, safety_stock_days=14, minimum_order_qty=pack, order_multiple=pack, source_tag=BASELINE_TAG, notes="Baseline reorder parameters"))
+    return {"ledger_rows": len(events), "sales": len(sale_rows), "receipts": len(receipt_rows), "purchase_orders": len(po_events)+4, "sites": len(site_rows), "materials": len(material_rows)}
+
+
+def ensure_baseline_planner_history(database: Database, ledger_path: Path = config.SOURCE_CSV) -> int:
+    """Record one as-of-date planning review for every site/material pair."""
     with database.session() as session:
-        return {
-            "sample_customers": int(session.scalar(select(func.count(Customer.id)).where(Customer.source_tag == SAMPLE_TAG)) or 0),
-            "demo_suppliers": int(session.scalar(select(func.count(Supplier.id))) or 0),
-            "sample_opening_counts": int(session.scalar(select(func.count(InventoryTransaction.id)).where(InventoryTransaction.source_tag == SAMPLE_TAG, InventoryTransaction.transaction_type == "opening_balance")) or 0),
-            "sample_receipts": int(session.scalar(select(func.count(InventoryTransaction.id)).where(InventoryTransaction.source_tag == SAMPLE_TAG, InventoryTransaction.transaction_type == "receipt")) or 0),
-            "sample_sale_transactions": int(session.scalar(select(func.count(InventoryTransaction.id)).where(InventoryTransaction.source_tag == SAMPLE_TAG, InventoryTransaction.source == "sale")) or 0),
-            "sample_sales": int(session.scalar(select(func.count(SalesRecord.id)).where(SalesRecord.source_tag == SAMPLE_TAG)) or 0),
-            "sample_reorder_rules": int(session.scalar(select(func.count(ReorderRule.id)).where(ReorderRule.source_tag == SAMPLE_TAG)) or 0),
-            "reconciled_pairs": pair_count,
-        }
-
-
-def ensure_sample_operations(database: Database, source_csv: Path = config.SOURCE_CSV) -> dict[str, int | str] | None:
-    """Seed sample operations once, after importing the matching historical CSV."""
-    if not source_csv.exists():
-        raise FileNotFoundError(f"Dataset not found: {source_csv}.")
-    with database.session() as session:
-        existing = int(session.scalar(
-            select(func.count(InventoryTransaction.id)).where(InventoryTransaction.source_tag == SAMPLE_TAG)
-        ) or 0)
-    if existing:
-        with database.session() as session, session.begin():
-            _ensure_demo_suppliers(session)
-        return None
-    frame = read_csv_bytes(source_csv.read_bytes())
-    frame = frame.sort_values(["project_site_id", "material", "date"], kind="stable").groupby(
-        ["project_site_id", "material"], sort=False
-    ).tail(30).copy()
-    result = load_sample_operations(database, frame)
-    if not 25 <= int(result["sample_customers"]) <= 40:
-        raise RuntimeError("Sample customer count is outside the requested 25–40 range.")
-    if int(result["demo_suppliers"]) < 1:
-        raise RuntimeError("No supplier records are available for the purchasing demo.")
-    if result["sample_reorder_rules"] != 60 or result["reconciled_pairs"] != 60:
-        raise RuntimeError("Sample ledger/rules did not cover all 60 site/material pairs.")
-    return result
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source-csv", type=Path, default=config.SOURCE_CSV)
-    parser.add_argument("--database-url", default=config.DATABASE_URL)
-    args = parser.parse_args(argv)
-    if not args.source_csv.exists():
-        print(f"Dataset not found: {args.source_csv}.", file=sys.stderr)
-        return 2
-    try:
-        database = Database(args.database_url)
-        try:
-            initialize_database(database)
-            ensure_primary_dataset_import(database, str(args.source_csv))
-            result = ensure_sample_operations(database, args.source_csv)
-        finally:
-            database.dispose()
-        print(f"Sample operations loaded/reconciled: {result or 'already present'}", flush=True)
-    except Exception as exc:
-        print(f"Operations loader failed: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return 1
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+        if session.scalar(select(func.count(PlannerRun.id))) or not ledger_path.exists():
+            return 0
+    with ledger_path.open("r", encoding="utf-8-sig", newline="") as stream:
+        events = list(csv.DictReader(stream))
+    totals = defaultdict(lambda: {"demand": Decimal("0"), "stock": Decimal("0")})
+    for row in events:
+        key = (row["site"], row["material"])
+        qty = Decimal(row["quantity"])
+        if row["event_type"] == "sale":
+            totals[key]["demand"] += qty
+            totals[key]["stock"] -= qty
+        else:
+            totals[key]["stock"] += qty
+    days = Decimal((AS_OF_DATE - date(2024, 4, 1)).days + 1)
+    created = 0
+    with database.session() as session, session.begin():
+        for (site_name, material_name), values in totals.items():
+            site = session.scalar(select(ProjectSite).where(ProjectSite.identifier == site_name))
+            material = session.scalar(select(Material).where(Material.name == material_name))
+            if not site or not material:
+                continue
+            rule = session.scalar(select(ReorderRule).where(ReorderRule.site_id == site.id, ReorderRule.material_id == material.id))
+            if not rule:
+                continue
+            stock = max(Decimal("0"), values["stock"])
+            target = Decimal(rule.reorder_point_qty or 0)
+            gap = max(Decimal("0"), target - stock)
+            multiple = Decimal(rule.order_multiple or 1)
+            recommended = (gap / multiple).to_integral_value(rounding=ROUND_CEILING) * multiple if gap else Decimal("0")
+            result = {
+                "status": "Order review" if recommended else "No order",
+                "site": site_name,
+                "material": material_name,
+                "unit": material.unit,
+                "current_stock": float(stock),
+                "lead_time_days": rule.lead_time_days,
+                "safety_stock_days": rule.safety_stock_days,
+                "historical_daily_rate": float(values["demand"] / days),
+                "recommendation": {"recommended_order_qty": float(recommended), "unit": material.unit,
+                                   "reorder_point_qty": float(target), "basis": "as-of ledger and configured reorder rule"},
+            }
+            session.add(PlannerRun(
+                run_key=f"baseline:{AS_OF_DATE.isoformat()}:{site.id}:{material.id}",
+                site_identifier=site_name, material_name=material_name,
+                status=result["status"], result_json=json.dumps(result, sort_keys=True),
+                created_at=datetime.combine(AS_OF_DATE, datetime.min.time()),
+            ))
+            created += 1
+    return created

@@ -30,4 +30,4 @@ Units: OPC/PPC cement, 50 kg bag; TMT diameters, kg; clay bricks, 1,000 bricks; 
 
 ## Quality checks
 
-The ledger builder checks its exact row count, date bounds, event mix, and nonnegative running stock by site and material. The final acceptance audit also checks sequential IDs, required site names, unit consistency, reproducibility, and cross-page reconciliation. Quality summaries are available in the application Data & Reports page after the database migration is complete.
+The ledger builder checks its exact row count, date bounds, event mix, and nonnegative running stock by site and material. The final acceptance audit also checks sequential IDs, required site names, unit consistency, reproducibility, and cross-page reconciliation. Quality summaries appear in the application Data & Reports page.

@@ -107,7 +107,6 @@ h1 { margin: 0; color: #f0f2eb; font-size: clamp(24px,3vw,32px); font-weight: 63
 .field label { color: #a9b3ac; font-size: 9px; font-weight: 620; }
 .field small, .field-help { color: #78837c; font-size: 9px; line-height: 1.45; }
 input, select, textarea, .control { width: 100%; min-width: 0; min-height: 34px; padding: 7px 9px; border: 1px solid #39423d; border-radius: 0; outline: none; background: #0d1110; color: #e4e9e2; font-size: 10px; }
-input::placeholder, textarea::placeholder { color: #59635d; }
 input:focus, select:focus, textarea:focus { border-color: #9c7938; box-shadow: 0 0 0 2px rgba(217,164,65,.1); }
 input[readonly], .control { color: #929d96; background: #151a18; }
 input[type="checkbox"] { width: 14px; min-height: 14px; height: 14px; padding: 0; }

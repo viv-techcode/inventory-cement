@@ -488,7 +488,7 @@ def evaluate_pooled(
     pooled_count = sum(not row["fallback_to_naive"] for row in series_results)
     return {
         "status": "evaluated",
-        "method": "3 expanding-window rolling-origin folds before untouched final 20% holdout; selection only by backtest MAE",
+        "method": "3 expanding-window rolling-origin folds before an untouched chronological holdout; selection only by backtest MAE",
         "calendar_periods": n_periods,
         "holdout_start": str(periods[split].start_time.date()),
         "holdout_end": str(periods[-1].end_time.date()),

@@ -28,7 +28,7 @@ def operational_sales_history(session: Session) -> pd.DataFrame:
         select(SalesRecord, ProjectSite, Material)
         .join(ProjectSite, SalesRecord.site_id == ProjectSite.id)
         .join(Material, SalesRecord.material_id == Material.id)
-        .where(SalesRecord.source_tag != "sample_ledger")
+        .where(SalesRecord.source_tag == "baseline_ledger")
         .order_by(SalesRecord.sale_date, SalesRecord.id)
     ).all()
     return pd.DataFrame.from_records(
@@ -81,8 +81,8 @@ def source_eligibility(
         "observed_operational_sales_periods": observed,
         "minimum_operational_sales_periods": required,
         "operational_sales_eligible": eligible,
-        "source_label_if_auto": "Operational sales" if eligible else "Construction Materials Dehradun Dataset",
-        "source_kind_if_auto": "operational_sales" if eligible else "historical_csv",
+        "source_label_if_auto": "Ledger sales" if eligible else "No eligible baseline sales",
+        "source_kind_if_auto": "operational_sales" if eligible else "unavailable",
         "note": (
             f"Operational sales has {observed} observed {frequency} periods; at least {required} are required."
             if required is not None
@@ -128,7 +128,7 @@ def resolve_forecast_source(
         )
     else:
         frame = history_to_frame(session)
-        label = "Construction Materials Dehradun Dataset"
+        label = "Doon Ridge Materials Ledger"
         if requested_source == "auto" and not eligible:
             reason = (
                 f"Operational sales is not eligible yet: {eligibility['observed_operational_sales_periods']} "

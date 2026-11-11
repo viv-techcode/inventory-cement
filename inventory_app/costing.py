@@ -53,17 +53,18 @@ def _weighted_state(entries: list[InventoryTransaction]) -> tuple[Decimal, Decim
                 if remove > quantity:
                     raise CostBasisError("Adjustment exceeds available stock on its transaction date.")
                 if quantity:
-                    average_value = known_value / quantity
-                    known_value -= average_value * remove
-                    unknown = max(Decimal("0"), unknown - remove)
+                    remaining_fraction = (quantity - remove) / quantity
+                    known_value *= remaining_fraction
+                    unknown *= remaining_fraction
                 quantity -= remove
         elif entry.transaction_type == "consumption":
             if qty > quantity:
                 raise CostBasisError("Sale quantity exceeds available stock on its transaction date.")
             if quantity:
-                known_value -= (known_value / quantity) * qty
-                # Unknown-cost stock makes the blended issue cost unavailable until cleared.
-                unknown = max(Decimal("0"), unknown - min(unknown, qty))
+                remaining_fraction = (quantity - qty) / quantity
+                known_value *= remaining_fraction
+                # Preserve the unknown-cost share under the same moving-average issue fraction.
+                unknown *= remaining_fraction
             quantity -= qty
     return quantity, max(Decimal("0"), known_value), unknown
 

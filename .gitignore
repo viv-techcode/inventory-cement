@@ -35,3 +35,6 @@ artifacts/models/*.tmp
 .vscode/
 *.log
 
+
+# Retired local model binaries
+/_private_archive/retired_model_artifacts/

@@ -14,7 +14,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import inspect, select, text
+from sqlalchemy import func, inspect, select, text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.errors import APIProblem
@@ -29,8 +29,8 @@ from api.routes_procurement import router as procurement_router
 from api.routes_sales import router as sales_router
 from inventory_app import config
 from inventory_app.database import SCHEMA_VERSION, Database, initialize_database
-from inventory_app.ingestion import ensure_primary_dataset_import
-from inventory_app.models import Base, HistoricalObservation, SchemaVersion
+from inventory_app.models import InventoryTransaction, SalesRecord
+from inventory_app.models import Base, SchemaVersion
 
 logger = logging.getLogger(__name__)
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
@@ -55,22 +55,24 @@ def _self_check(database: Database) -> dict:
     with database.session() as session:
         version_record = session.get(SchemaVersion, 1)
         schema_version = version_record.version if version_record else None
-        history_rows = session.scalar(select(HistoricalObservation.id).limit(1))
-        if history_rows is None:
-            observed_rows = 0
-        else:
-            observed_rows = session.query(HistoricalObservation).count()
+        observed_rows = session.scalar(select(func.count(InventoryTransaction.id)).where(InventoryTransaction.source_tag == "baseline_ledger")) or 0
     dataset_rows = None
     if config.SOURCE_CSV.exists():
         with config.SOURCE_CSV.open("r", encoding="utf-8-sig", newline="") as stream:
             dataset_rows = max(sum(1 for _ in stream) - 1, 0)
+    with database.engine.connect() as connection:
+        db_ok = connection.exec_driver_sql("SELECT 1").scalar_one() == 1
     return {
+        "database_status": "ok" if db_ok else "error",
+        "ledger_file_found": config.SOURCE_CSV.is_file(),
         "schema_version": schema_version,
         "expected_schema_version": SCHEMA_VERSION,
         "schema_current": schema_version == SCHEMA_VERSION,
         "required_tables_present": not missing,
         "missing_tables": missing,
-        "historical_rows": observed_rows,
+        "baseline_ledger_rows": observed_rows,
+        "ledger_rows": dataset_rows,
+        "ledger_row_count_matches": dataset_rows is not None and observed_rows == dataset_rows,
         "dataset_rows": dataset_rows,
         "dataset_row_count_matches": dataset_rows is not None and observed_rows == dataset_rows,
     }
@@ -87,12 +89,11 @@ def create_app(*, database_url: str | None = None, auto_import_source: bool = Tr
         try:
             initialize_database(database)
             if auto_import_source and config.SOURCE_CSV.exists():
-                ensure_primary_dataset_import(database, str(config.SOURCE_CSV))
-            if os.getenv("INVENTORY_SEED_SAMPLE_OPERATIONS", "").strip().lower() in {"1", "true", "yes", "on"}:
-                from scripts.load_operations import ensure_sample_operations
+                from scripts.load_operations import ensure_baseline_planner_history, ensure_ledger_baseline
 
-                seeded = ensure_sample_operations(database)
-                logger.info("Sample operations startup seed: %s", seeded or "already present")
+                seeded = ensure_ledger_baseline(database, config.SOURCE_CSV)
+                logger.info("Ledger baseline load: %s", seeded or "already present")
+                logger.info("As-of planner history rows: %s", ensure_baseline_planner_history(database, config.SOURCE_CSV))
             app.state.database = database
             app.state.startup_diagnostics = _self_check(database)
             logger.info("Startup self-check: %s", app.state.startup_diagnostics)
@@ -104,7 +105,7 @@ def create_app(*, database_url: str | None = None, auto_import_source: bool = Tr
             database.dispose()
 
     application = FastAPI(
-        title="Construction Materials Operations",
+        title="Doon Ridge Materials",
         version="2.0.0",
         description="Offline-first stock, sales, forecasting, replenishment, and reporting API.",
         lifespan=lifespan,
@@ -127,11 +128,10 @@ def create_app(*, database_url: str | None = None, auto_import_source: bool = Tr
         database: Database = request.app.state.database
         with database.session() as session:
             session.execute(text("SELECT 1"))
-        return {
-            "status": "ok",
-            "service": "construction-materials-operations",
-            "checks": _self_check(database),
-        }
+        checks = _self_check(database)
+        healthy = checks["database_status"] == "ok" and checks["ledger_file_found"] and checks["ledger_row_count_matches"] and checks["required_tables_present"]
+        payload = {"status": "ok" if healthy else "error", "service": "doon-ridge-materials", "as_of_date": config.AS_OF_DATE, "checks": checks}
+        return payload if healthy else JSONResponse(status_code=503, content=payload)
 
     @application.get("/api/diagnostics", tags=["system"])
     def diagnostics(request: Request):

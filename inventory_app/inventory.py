@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from inventory_app import config
 from inventory_app.models import InventoryTransaction, Material, ProjectSite
 
 TransactionType = Literal["opening_balance", "receipt", "consumption", "adjustment"]
@@ -35,7 +36,8 @@ def decimal_value(value: Decimal | int | float | str, *, field: str = "quantity"
 
 
 def local_today() -> date:
-    return datetime.now(ZoneInfo("Asia/Kolkata")).date()
+    """Return the configured ledger cutoff, independent of host clock."""
+    return date.fromisoformat(config.AS_OF_DATE)
 
 
 def get_current_balance(

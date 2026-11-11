@@ -362,6 +362,18 @@ class ReplenishmentReview(Base):
     )
 
 
+class PlannerRun(Base):
+    __tablename__ = "planner_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_key: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    site_identifier: Mapped[str] = mapped_column(String(160), nullable=False)
+    material_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+
 class ApplicationSetting(Base):
     __tablename__ = "application_settings"
 

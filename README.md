@@ -1,51 +1,50 @@
-# SiteStock — Construction Materials Inventory
+# Doon Ridge Materials
 
-SiteStock is a local FastAPI application with an HTML/CSS/JavaScript interface for construction-material inventory, sales, forecasts, replenishment, purchasing, and data-quality review. Dataset construction and its limitations are documented in the data card.
+Construction-material inventory, purchasing, sales and weekly demand forecasting for six Dehradun locations. The baseline ledger covers 1 April 2024 through 2 July 2026.
 
-## Run on Windows
+## Architecture
 
-Requires Python 3.11 or newer.
+FastAPI serves the REST API and static frontend. SQLAlchemy stores the loaded ledger events and operational records in SQLite. On an empty database, startup reconstructs the baseline from `data/construction_materials_ledger.csv` and deterministic loader logic. App-entered sales and receipts are stored in the database and excluded from model training.
 
-1. Run: py -3.11 -m venv .venv
-2. Activate: .venv\Scripts\Activate.ps1
-3. Install: python -m pip install -r requirements.txt
-4. Rebuild and validate the bundled dataset: python -m scripts.build_dataset
-5. Initialize the database and import the historical source: python -m scripts.init_database
-6. Train and save model comparisons offline: python -m scripts.train_all
-7. Run the holdout policy comparison: python -m scripts.simulate_inventory_policies
-8. Start the app: uvicorn api.main:app --host 127.0.0.1 --port 8000
-9. Open http://127.0.0.1:8000/
+## Data model
 
-Startup creates the configured SQLite database and imports the bundled CSV once by file hash. Set INVENTORY_DB_URL to use another database path. For an existing database, take a SQLite backup before changing environment or schema settings.
+The committed ledger is the only active CSV. It records opening balances, sales, purchase receipts and stock adjustments with continuous event IDs, units, prices, costs and document references. Database tables hold material and site masters, customers, suppliers, purchase orders, receipt details, reorder parameters, derived weekly observations and post-load entries. No database file is committed.
 
-For Render, deploy the combined FastAPI app as a Web Service and use the persistent SQLite setup in [docs/RENDER_DEPLOYMENT.md](docs/RENDER_DEPLOYMENT.md). Set `INVENTORY_SEED_SAMPLE_OPERATIONS=true` to initialize demo stock, sales, suppliers/customers, and reorder rules on a new empty database. Without a persistent disk, treat hosted changes as temporary.
+## Forecasting
 
-XGBoost is optional; install the pinned optional requirements in requirements-optional-ml.txt to enable it. Plotly.js is bundled locally, and the app has no CDN or remote font dependency.
+Weekly quantity is the target. Model evaluation uses chronological training and holdout periods, past-only features, expanding-window validation and MAE, RMSE, WAPE and MASE. Committed model metrics and aligned holdout/future predictions are in `docs/model_metrics.json`; the deployed app serves those outputs without fitting models at startup. Forecasts are fit directly for each of the 90 site/material weekly series, each with more than two years of weekly periods. Three expanding-window folds select the model; the final 16 weeks remain untouched for holdout reporting. See `docs/PLAN.md` for the accepted design and current completion state.
 
-Database initialization and CSV loading are idempotent. `scripts.train_all` runs model fitting offline; API requests use saved assessments or a lightweight Naive fallback, so a cold cache does not trigger the full model suite. Before repricing an existing copy, use the dated instructions in `docs/PRICE_SOURCES.md` and take a SQLite backup. The rebase tool updates historical prices only and validates stock-flow fields before writing.
+## Inventory calculations
 
-## Dataset
-- File: data/construction_materials_dehradun_dataset.csv
-- 8,940 rows, 60 site/material series, 149 weekly observations each
-- Calendar coverage: 2024-01-01 through 2026-11-02
-- 16 identifier, measurement, and derived-level columns; see docs/DATASET_CARD.md and docs/DATASET_AUDIT.md.
+- Reorder point = expected demand during supplier lead time + safety stock.
+- Safety stock = z × weekly demand standard deviation × √(lead time in weeks).
+- Inventory value and cost of goods sold use recorded weighted-average acquisition cost.
+- ABC class is based on cumulative annualized sales value.
+- Prices in the ledger are INR per unit, ex-GST; tax presentation uses the invoice date and SKU classification.
 
-## Main areas
-- Dashboard: current operational stock, alerts, and historical summaries
-- Inventory and sales: ledger transactions, customers, recorded costs, and revenue
-- Forecasting: Naive and Seasonal Naive baselines, regression and tree models, with chronological evaluation
-- Replenishment: shared risk logic, service-level safety stock, and pack-rounded suggestions
-- Purchasing: supplier records, purchase orders, and receipts
-- Data and reports: CSV validation/import, quality summaries, and exports
+## Run locally
 
-## Useful commands
-- python -m scripts.build_dataset
-- python -m scripts.init_database
-- python -m scripts.train_all
-- python -m scripts.train_all --metrics-only
-- python -m scripts.simulate_inventory_policies
-- python -m scripts.make_submission
-- python -m scripts.run_with_timeout --timeout 170 -- python -m pytest -q
-- node --check frontend/app.js
+Python 3.11.11 is the pinned runtime.
 
-Application settings are read from environment variables; .env.example documents supported configuration. Database initialization and CSV loading are idempotent.
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m scripts.reset_database
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+Open `http://127.0.0.1:8000/`. Set `INVENTORY_DB_URL` to choose another SQLite path. `AS_OF_DATE` defaults to `2026-07-02`.
+
+## Render
+
+The service is defined in `render.yaml`. Use the free plan for a baseline that rebuilds from committed code and ledger. App-entered records reset when the service sleeps, restarts or deploys. Persistent storage requires changing to an eligible paid service plan and enabling the disk configuration documented in `docs/RENDER_DEPLOYMENT.md`.
+
+## Project documents
+
+- `docs/DATASET_CARD.md`: ledger coverage, columns and quality checks.
+- `docs/PRESENTATION_GUIDE.md`: feature mapping, walkthrough and viva prompts.
+- `docs/PLAN.md`: architecture, forecasting and acceptance checklist.
+- `docs/DECISIONS.md`: design decisions and consulted sources.
+- `docs/VERIFICATION_LOG.md`: commands and observed results.
+- `docs/PRICE_REFERENCES.md`: material price ranges and reference URLs.

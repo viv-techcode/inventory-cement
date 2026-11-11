@@ -3,18 +3,17 @@ from __future__ import annotations
 
 from inventory_app import config
 from inventory_app.database import Database, initialize_database
-from inventory_app.ingestion import ensure_primary_dataset_import
+from scripts.load_operations import ensure_baseline_planner_history, ensure_ledger_baseline
 
 
 def main() -> int:
     database = Database(config.DATABASE_URL)
     try:
         initialize_database(database)
-        result = ensure_primary_dataset_import(database, str(config.SOURCE_CSV))
-        print(
-            f"Database ready: schema initialized; historical rows={result.accepted_rows}; "
-            f"duplicate_file={result.duplicate_file}. No operational stock transactions were created."
-        )
+        result = ensure_ledger_baseline(database, config.SOURCE_CSV)
+        planner_history = ensure_baseline_planner_history(database, config.SOURCE_CSV)
+        print(f"Database ready: {result or 'baseline already loaded'}")
+        print(f"Planner history rows added: {planner_history}")
     finally:
         database.dispose()
     return 0

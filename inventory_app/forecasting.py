@@ -19,6 +19,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sqlalchemy import select
 
+from inventory_app import config
 from inventory_app.config import get_artifacts_dir
 from inventory_app.database import Database
 from inventory_app.models import ForecastArtifact, Material, ProjectSite, utc_now
@@ -173,9 +174,8 @@ def prepare_series(
         raise ForecastUnavailable(
             f"Only {observed_count} {frequency} observations are usable; at least {minimum} are required for a chronological holdout and lag-based models."
         )
-    split = max(12 if frequency == "monthly" else 18, int(math.floor(len(full_periods) * 0.8)))
-    if split >= len(full_periods) - 2:
-        split = len(full_periods) - max(4, int(math.ceil(len(full_periods) * 0.2)))
+    holdout_periods = min(16, max(4, len(full_periods) - (12 if frequency == "monthly" else 52)))
+    split = len(full_periods) - holdout_periods
     test_count = int(np.isfinite(values[split:]).sum())
     if test_count < 3:
         raise ForecastUnavailable("The chronological test period has fewer than three observed target periods; evaluation would be too weak.")
@@ -313,11 +313,9 @@ def _fit_full_estimator(name: str, values: np.ndarray):
 
 def _chronological_split(series: PreparedSeries) -> tuple[int, int]:
     n = len(series.values)
-    split = int(math.floor(n * 0.8))
-    minimum_train = 12 if series.frequency == "monthly" else 18
-    split = max(minimum_train, split)
-    if split >= n - 2:
-        split = n - max(4, int(math.ceil(n * 0.2)))
+    minimum_train = 12 if series.frequency == "monthly" else 52
+    holdout_periods = min(16, max(4, n - minimum_train))
+    split = n - holdout_periods
     return split, n
 
 
@@ -784,6 +782,94 @@ def data_hash_for_series(
     return prepare_series(history, site, material, frequency, source_label=source_label).data_hash
 
 
+def committed_metrics_document() -> dict[str, Any] | None:
+    """Read committed model outputs only when they match the active ledger bytes."""
+    path = config.PROJECT_ROOT / "docs" / "model_metrics.json"
+    if not path.exists() or not config.SOURCE_CSV.exists():
+        return None
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        current_hash = hashlib.sha256(config.SOURCE_CSV.read_bytes()).hexdigest()
+        return document if document.get("dataset_sha256", "").lower() == current_hash.lower() else None
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def load_committed_assessment(
+    history: pd.DataFrame, *, site: str, material: str, frequency: str,
+    horizon_days: int, source_label: str = "Doon Ridge Materials Ledger",
+) -> dict[str, Any] | None:
+    """Serve the committed text predictions on hosts without fitted model files."""
+    if frequency != "weekly":
+        return None
+    document = committed_metrics_document()
+    if document is None:
+        return None
+    try:
+        series = prepare_series(history, site, material, frequency, source_label=source_label)
+    except ForecastUnavailable:
+        return None
+    rows = [row for row in document.get("series_metrics", []) if row.get("site") == site and row.get("material") == material]
+    if not rows:
+        return None
+    metrics = [{key: row.get(key) for key in (
+        "model", "status", "mae", "selection_mae", "rmse", "r2", "wape_pct", "mase",
+        "interval_radius", "forecast_error_sigma", "prediction_interval_coverage_pct",
+        "evaluation_observations", "training_observations", "test_start", "test_end",
+        "training_start", "training_end", "message",
+    )} for row in rows]
+    available = [row for row in rows if row.get("status") == "available"]
+    if not available:
+        return None
+    best_model = available[0].get("selected_model")
+    if not best_model:
+        return None
+    steps = forecast_periods_for_horizon(horizon_days, frequency)
+    forecasts: dict[str, pd.DataFrame] = {}
+    holdouts: dict[str, pd.DataFrame] = {}
+    payloads: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        model_name = row.get("model")
+        future_rows = row.get("future_predictions") or []
+        holdout_rows = row.get("holdout_predictions") or []
+        if row.get("status") == "available" and future_rows and holdout_rows:
+            future = pd.DataFrame(future_rows[:steps])
+            holdout = pd.DataFrame(holdout_rows)
+            future["date"] = pd.to_datetime(future["date"], errors="coerce")
+            holdout["date"] = pd.to_datetime(holdout["date"], errors="coerce")
+            forecasts[model_name] = future
+            holdouts[model_name] = holdout
+            payloads[model_name] = {"feature_importance": row.get("feature_importance", [])}
+    selected_row = next((row for row in rows if row.get("model") == best_model), None)
+    if selected_row is None or best_model not in forecasts:
+        return None
+    selected_metric = next((row for row in metrics if row.get("model") == best_model), {})
+    forest_row = next((row for row in rows if row.get("model") == "Random Forest"), {})
+    radius = selected_metric.get("interval_radius")
+    if radius is not None:
+        selected_future = forecasts[best_model]
+        if "lower" not in selected_future:
+            selected_future["lower"] = (selected_future["forecast"] - float(radius)).clip(lower=0)
+            selected_future["upper"] = selected_future["forecast"] + float(radius)
+    selected_holdout = holdouts[best_model]
+    return {
+        "site": site, "material": material, "unit": series.unit, "frequency": frequency,
+        "source_label": series.source_label, "horizon_days": horizon_days,
+        "prediction_interval": {"level_pct": 90, "radius": float(radius) if radius is not None else None,
+                                 "calibration": "pre-holdout rolling-origin absolute errors",
+                                 "holdout_coverage_pct": selected_metric.get("prediction_interval_coverage_pct")},
+        "horizon_periods": steps, "data_hash": series.data_hash,
+        "source_observations": series.source_observations, "calendar_periods": len(series.periods),
+        "training_start": series.dates[0].date().isoformat(), "training_end": series.dates[-1].date().isoformat(),
+        "evaluation_start": selected_metric.get("test_start"), "evaluation_end": selected_metric.get("test_end"),
+        "split_index": max(0, len(series.values)-len(selected_holdout)),
+        "seasonal_period": 52, "warnings": list(dict.fromkeys(series.warnings)),
+        "metrics": metrics, "best_model": best_model, "forecasts": forecasts,
+        "holdout_predictions": holdouts, "payloads": payloads, "feature_importance": forest_row.get("feature_importance", []),
+        "series": series, "cache_hit": True,
+    }
+
+
 def load_or_naive_assessment(
     db: Database,
     history: pd.DataFrame,
@@ -810,6 +896,12 @@ def load_or_naive_assessment(
     )
     if saved is not None:
         return saved
+    committed = load_committed_assessment(
+        history, site=site, material=material, frequency=frequency,
+        horizon_days=horizon_days, source_label=source_label,
+    )
+    if committed is not None:
+        return committed
     assessment = evaluate_model_suite(
         history,
         site=site,

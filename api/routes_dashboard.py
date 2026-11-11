@@ -129,7 +129,9 @@ def dashboard(
     else:
         stock_value = None
         stock_value_status = "Unavailable — one or more balances lack a complete recorded cost basis"
-    low_stock = balances.loc[balances["reorder_alert"] == True]
+    # The alert queue is an all-pairs overview like the KPI above, not limited to
+    # the currently selected chart site/material pair.
+    low_stock = overview_balances.loc[overview_balances["reorder_alert"] == True]
     alerts = [
         {
             "site": row.site,
@@ -258,9 +260,9 @@ def dashboard(
         "inventory_risk": risk_rows[:30],
         "inventory_risk_method": "Past-only baseline: mean of last four observed weekly consumptions; sigma from recent one-step changes; 95% service target. Missing physical stock or lead time is High risk.",
         "top_materials": top_materials,
-        "historical_consumption_source": "Construction Materials Dehradun Dataset",
+        "historical_consumption_source": "Doon Ridge Materials Ledger",
         "historical_coverage": historical_coverage,
         "historical_consumption_trend": historical_trend,
         "operational_sales_revenue_trend": sales_trend,
-        "source_separation_note": "Construction Materials Dehradun Dataset observations and operational sales are returned as separate series and are never combined.",
+        "source_separation_note": "Doon Ridge Materials Ledger observations and operational sales are returned as separate series and are never combined.",
     }

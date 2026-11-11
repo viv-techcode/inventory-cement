@@ -1,6 +1,6 @@
 """Reproducible November 2026 indicative price assumptions.
 
-Reference values are Dehradun dealer-to-retail midpoints; conversions and site
+Reference values are Dehradun listed market range midpoints; conversions and site
 factors are explicit scenario assumptions, not supplier quotations.
 """
 from __future__ import annotations

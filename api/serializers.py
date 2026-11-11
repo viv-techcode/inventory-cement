@@ -132,10 +132,10 @@ def forecast_payload(
     recency: dict[str, Any],
 ) -> dict[str, Any]:
     series = assessment["series"]
-    feature_importance = []
+    feature_importance = list(assessment.get("feature_importance", []))
     forest_payload = assessment.get("payloads", {}).get("Random Forest", {})
     forest = forest_payload.get("estimator") if isinstance(forest_payload, dict) else None
-    if forest is not None:
+    if not feature_importance and forest is not None:
         if hasattr(forest, "named_steps"):
             forest = list(forest.named_steps.values())[-1]
         importances = getattr(forest, "feature_importances_", None)

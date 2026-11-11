@@ -7,12 +7,13 @@ from sqlalchemy.engine import make_url
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"
-DATASET_NAME = "Construction Materials Dehradun Dataset"
-DATASET_SOURCE_KIND = "construction_materials_dehradun_dataset"
-SOURCE_CSV = DATA_DIR / "construction_materials_dehradun_dataset.csv"
+AS_OF_DATE = os.getenv("AS_OF_DATE", "2026-07-02")
+DATASET_NAME = "Doon Ridge Materials Ledger"
+DATASET_SOURCE_KIND = "construction_materials_ledger"
+SOURCE_CSV = DATA_DIR / "construction_materials_ledger.csv"
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts" / "models"
 LOGS_DIR = PROJECT_ROOT / "logs"
-DEFAULT_DATABASE_URL = f"sqlite:///{(DATA_DIR / 'inventory.db').as_posix()}"
+DEFAULT_DATABASE_URL = "sqlite:///data/inventory.db"
 DATABASE_URL = os.getenv("INVENTORY_DB_URL", DEFAULT_DATABASE_URL)
 
 

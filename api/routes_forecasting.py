@@ -19,6 +19,7 @@ from inventory_app.forecasting import (
     MODEL_VERSION,
     ForecastUnavailable,
     assess_demand_source_recency,
+    committed_metrics_document,
     data_hash_for_series,
     load_or_naive_assessment,
 )
@@ -79,7 +80,7 @@ def evaluate_forecast(
                 "observed_periods": exc.observed_periods,
                 "required_periods": exc.required_periods,
                 "frequency": exc.frequency,
-                "source_label_if_auto": "Construction Materials Dehradun Dataset",
+                "source_label_if_auto": "Doon Ridge Materials Ledger",
             },
         ) from exc
 
@@ -104,11 +105,6 @@ def evaluate_forecast(
         material=material.name,
         as_of=local_today(),
     )
-    selected = source_frame.loc[
-        (source_frame["project_site_id"] == site.identifier)
-        & (source_frame["material"] == material.name)
-    ].sort_values("date")
-    holdout_start = int(len(selected) * 0.8)
     details = {
         **source_details,
         "requested_source": body.source,
@@ -156,17 +152,36 @@ def forecast_leaderboard(session: Session = Depends(get_session)):
             "evaluation_end": record.evaluation_end.date().isoformat() if record.evaluation_end else None,
         }
 
+    committed_by_pair: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    if not records:
+        document = committed_metrics_document()
+        if document is not None:
+            for row in document.get("series_metrics", []):
+                committed_by_pair[(row["site"], row["material"])].append(row)
+
     items = []
     wins: Counter[str] = Counter()
     pairs = sorted({(str(site), str(material)) for site, material in zip(history.project_site_id, history.material)})
     for site, material in pairs:
         try:
             current_hash = data_hash_for_series(
-                history, site, material, "weekly", source_label="Construction Materials Dehradun Dataset"
+                history, site, material, "weekly", source_label="Doon Ridge Materials Ledger"
             )
         except ForecastUnavailable:
             continue
         metrics_by_model = stored.get((site, material, current_hash), {})
+        if not metrics_by_model:
+            metrics_by_model = {
+                row["model"]: {
+                    "model": row["model"], "status": row.get("status"),
+                    "mae": row.get("mae"), "selection_mae": row.get("selection_mae"),
+                    "rmse": row.get("rmse"), "r2": row.get("r2"), "wape_pct": row.get("wape_pct"),
+                    "training_observations": row.get("training_observations"),
+                    "evaluation_observations": row.get("evaluation_observations"),
+                    "training_start": row.get("training_start"), "training_end": row.get("training_end"),
+                    "evaluation_start": row.get("test_start"), "evaluation_end": row.get("test_end"),
+                } for row in committed_by_pair.get((site, material), [])
+            }
         eligible = [
             metric for metric in metrics_by_model.values()
             if metric["status"] == "available" and metric["selection_mae"] is not None
@@ -195,7 +210,7 @@ def forecast_leaderboard(session: Session = Depends(get_session)):
 
     return {
         "frequency": "weekly",
-        "source_label": "Construction Materials Dehradun Dataset",
+        "source_label": "Doon Ridge Materials Ledger",
         "model_version": MODEL_VERSION,
         "pair_count": len(items),
         "stored_metrics_only": True,

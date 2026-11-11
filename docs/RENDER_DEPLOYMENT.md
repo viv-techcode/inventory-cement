@@ -1,30 +1,33 @@
-# Render Demo Deployment
+# Render Deployment
 
-SiteStock is a single FastAPI application that serves both the API and the HTML/CSS/JavaScript interface. Deploy it as one Render **Web Service**. Vercel would turn this server application into function-based routes and would not solve the database persistence problem.
+## Blueprint settings
 
-## Render service settings
+`render.yaml` defines one Python web service on the free plan:
 
-- Runtime: Python 3
-- Build command: `pip install -r requirements.txt`
-- Start command: `uvicorn api.main:app --host 0.0.0.0 --port $PORT`
-- Health check path: `/api/health`
-- Environment: `INVENTORY_DB_URL=sqlite:////var/data/inventory.db`
-- Environment: `INVENTORY_SEED_SAMPLE_OPERATIONS=true`
-- Persistent disk mount path: `/var/data`
+- Python version: 3.11.11 through `PYTHON_VERSION`.
+- Build: `pip install -r requirements.txt`.
+- Start: `uvicorn api.main:app --host 0.0.0.0 --port $PORT`.
+- Health check: `/api/health`.
+- `AS_OF_DATE=2026-07-02`.
+- `INVENTORY_DB_URL=sqlite:///data/inventory.db`.
 
-Attach the persistent disk to the web service and keep one service instance. The database file must live under the disk mount. A SQLite file in the repository directory or `/tmp` can disappear when Render replaces the instance. A persistent disk is a Render paid feature; if the service must stay on a free ephemeral filesystem, treat it as a read-only demonstration because visitor changes can be lost at restart or redeploy.
+At startup, an empty database is created from the committed ledger and deterministic loading code. Existing populated databases are left intact. The SQLite database file is excluded from Git. Forecast requests use source-hash-checked metrics and aligned predictions in `docs/model_metrics.json`; startup does not train models or require fitted model binaries.
 
-The seed setting is optional and off by default. When enabled, app startup imports the canonical historical dataset and creates the sample operational ledger only if the database has no sample transactions. This produces opening stock, receipts, sales, 30 customers, and reorder rules for all 60 site/material pairs. Five generic demo suppliers are added if the supplier list is empty. The loader checks stock reconciliation and is safe to run again; existing sample operations are not rewritten. Forecast evaluation uses its lightweight Naive fallback if no compatible trained model artifacts are present, so first requests do not trigger long model training.
+## Free plan behavior
 
-## After deployment
+Render free web services sleep after 15 minutes without inbound traffic and typically take about a minute to start again. Their filesystem is ephemeral: local changes, including SQLite writes, are lost on spin-down, restart, or deployment. Free web services cannot attach persistent disks. The committed ledger remains available to rebuild baseline records at startup; records entered through the interface reset with the ephemeral database.
 
-1. Open `/api/health` and confirm `status` is `ok`, `schema_current` and `required_tables_present` are true, and `dataset_row_count_matches` is true.
-2. Open `/` and try Dashboard, Inventory, Sales, Forecasting, Replenishment, Purchasing, and Data & Reports.
-3. For a demo workflow, post an inventory receipt, record a sale, inspect replenishment, and confirm the new balance appears afterward.
-4. Check the Render deploy logs if the service starts with no records or an API page reports an error. Recheck the service's Start command and that the disk is mounted at `/var/data`.
+## Optional persistent storage
 
-The sample customer names, ledger, prices, and demand series are synthetic teaching/demo records. Do not present them as real supplier transactions or physical stock counts. Use the sample-tag/source fields and disclose the synthetic data in a submitted demo.
+Persistent disks require an eligible paid service plan. In `render.yaml`, change `plan: free` to `plan: starter` or another disk-eligible plan, uncomment the `disk` block, and set `INVENTORY_DB_URL` to `sqlite:////var/data/inventory.db`. Create/sync the Blueprint, confirm the mount path is `/var/data` in the Render dashboard, and verify `/api/health` before accepting writes.
 
-## Database upgrade path
+## Dashboard setup
 
-For this single-instance prototype, SQLite on a persistent disk is the smallest change because the app already uses SQLAlchemy and SQLite migrations. Use managed PostgreSQL when multiple app instances, concurrent users, or a real multi-user dataset become requirements. Before switching, validate the migration path against PostgreSQL; the existing production workflow is currently documented and verified for SQLite. Back up the database before each schema or deployment change.
+1. Create a new Blueprint from the repository.
+2. Confirm the service name, linked repository, and `master` branch.
+3. Review the plan and environment variables from `render.yaml`.
+4. Deploy and wait for `/api/health` to pass.
+5. Open the service URL and visit Dashboard, Inventory, Sales, Forecasting, Replenishment, Purchasing, and Data & Reports.
+6. If network access to the deployed service is unavailable, run `python scripts/smoke_test.py https://YOUR-SERVICE.onrender.com` from a reachable machine and retain the output.
+
+`/api/health` returns database connectivity, ledger-file presence, ledger row count, and the number of loaded baseline events. `scripts/smoke_test.py` checks this endpoint and each page API using the supplied base URL.

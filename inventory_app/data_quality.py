@@ -10,6 +10,7 @@ import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from inventory_app import config
 from inventory_app.models import HistoricalObservation
 
 HISTORY_COLUMNS = [
@@ -70,7 +71,7 @@ def history_to_frame(session: Session) -> pd.DataFrame:
 
 def build_data_quality_report(frame: pd.DataFrame, *, as_of: date | None = None) -> dict[str, Any]:
     """Summarize quality and infer row cadence/stock-flow consistency conservatively."""
-    current_day = as_of or datetime.now(ZoneInfo("Asia/Kolkata")).date()
+    current_day = as_of or date.fromisoformat(config.AS_OF_DATE)
     if frame.empty:
         return {
             "row_count": 0,
