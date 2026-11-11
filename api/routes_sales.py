@@ -45,7 +45,7 @@ def _sales_query(
         query = query.where(SalesRecord.sale_date >= start_date)
     if end_date:
         query = query.where(SalesRecord.sale_date <= end_date)
-    if search:
+    if search and isinstance(search, str):
         pattern = f"%{search.strip()}%"
         query = query.where(or_(
             ProjectSite.identifier.ilike(pattern),

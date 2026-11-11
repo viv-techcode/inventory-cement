@@ -121,7 +121,7 @@ def list_balances(
         frame = frame.loc[frame["material"] == material.name]
     if alert_only:
         frame = frame.loc[frame["reorder_alert"]]
-    if search:
+    if search and isinstance(search, str):
         mask = frame["site"].str.contains(search, case=False, na=False) | frame["material"].str.contains(search, case=False, na=False)
         frame = frame.loc[mask]
     items = [

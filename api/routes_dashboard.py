@@ -39,8 +39,8 @@ def dashboard(
 
     sites = session.scalars(select(ProjectSite).where(ProjectSite.is_active.is_(True)).order_by(ProjectSite.identifier)).all()
     materials = session.scalars(select(Material).where(Material.is_active.is_(True)).order_by(Material.name)).all()
-    selected_site = session.get(ProjectSite, site_id) if site_id is not None else (sites[0] if sites else None)
-    selected_material = session.get(Material, material_id) if material_id is not None else (materials[0] if materials else None)
+    selected_site = session.get(ProjectSite, site_id) if site_id is not None else None
+    selected_material = session.get(Material, material_id) if material_id is not None else None
     if site_id is not None and (selected_site is None or not selected_site.is_active):
         raise APIProblem(404, "site_not_found", "Active project site not found.")
     if material_id is not None and (selected_material is None or not selected_material.is_active):
@@ -189,21 +189,22 @@ def dashboard(
     historical = history_to_frame(session)
     historical_trend = []
     historical_coverage = None
-    if selected_site is not None and selected_material is not None and not historical.empty:
-        selected_history = historical.loc[
-            (historical["project_site_id"] == selected_site.identifier)
-            & (historical["material"] == selected_material.name)
-        ].copy()
-        if not selected_history.empty:
-            observed_dates = pd.to_datetime(selected_history["date"], errors="coerce").dropna()
+    if not historical.empty:
+        filtered_history = historical.copy()
+        if selected_site is not None:
+            filtered_history = filtered_history.loc[filtered_history["project_site_id"] == selected_site.identifier]
+        if selected_material is not None:
+            filtered_history = filtered_history.loc[filtered_history["material"] == selected_material.name]
+        if not filtered_history.empty:
+            observed_dates = pd.to_datetime(filtered_history["date"], errors="coerce").dropna()
             historical_coverage = {
                 "from": observed_dates.min().date().isoformat(),
                 "to": observed_dates.max().date().isoformat(),
-                "observations": int(len(selected_history)),
+                "observations": int(len(filtered_history)),
             }
-            aggregated = aggregate_consumption(selected_history, "Monthly")
+            aggregated = aggregate_consumption(filtered_history, "Monthly")
             historical_trend = [
-                {"period": pd.Timestamp(row.period).date().isoformat(), "quantity": float(row.consumption_qty), "unit": row.unit}
+                {"period": pd.Timestamp(row.period).date().isoformat(), "quantity": float(row.consumption_qty), "unit": selected_material.unit if selected_material else "units"}
                 for row in aggregated.itertuples(index=False)
             ]
 
@@ -256,8 +257,8 @@ def dashboard(
             "risk_pairs": len(risk_rows),
             "risk_overstock": sum(bool(row["overstock"]) for row in risk_rows),
         },
-        "alerts": alerts[:30],
-        "inventory_risk": risk_rows[:30],
+        "alerts": alerts,
+        "inventory_risk": risk_rows,
         "inventory_risk_method": "Past-only baseline: mean of last four observed weekly consumptions; sigma from recent one-step changes; 95% service target. Missing physical stock or lead time is High risk.",
         "top_materials": top_materials,
         "historical_consumption_source": "Doon Ridge Materials Ledger",

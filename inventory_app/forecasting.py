@@ -244,24 +244,24 @@ def _create_estimator(name: str):
         return make_pipeline(StandardScaler(), LinearRegression())
     if name == "Random Forest":
         return RandomForestRegressor(
-            n_estimators=250,
-            max_depth=8,
+            n_estimators=60,
+            max_depth=5,
             min_samples_leaf=2,
             random_state=42,
-            n_jobs=1,
+            n_jobs=-1,
         )
     if name == "XGBoost":
         from xgboost import XGBRegressor
         return XGBRegressor(
-            n_estimators=200,
+            n_estimators=50,
             max_depth=3,
-            learning_rate=0.04,
+            learning_rate=0.05,
             subsample=0.85,
             colsample_bytree=0.85,
             reg_lambda=2.0,
             objective="reg:squarederror",
             random_state=42,
-            n_jobs=1,
+            n_jobs=-1,
             verbosity=0,
         )
     raise ValueError(f"No fitted estimator is defined for {name}.")

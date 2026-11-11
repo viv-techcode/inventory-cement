@@ -198,6 +198,7 @@ def main() -> int:
         "model_summaries": summaries,
         "series_metrics": metric_rows,
     }, indent=2, sort_keys=True), encoding="utf-8")
+    refresh_metrics_only()
     elapsed = time.perf_counter() - started
     print(
         f"Finished in {elapsed:.2f}s: {successful_pairs}/{len(pairs)} pair(s), "

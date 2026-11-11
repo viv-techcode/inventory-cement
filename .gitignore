@@ -12,6 +12,10 @@ htmlcov/
 .streamlit/secrets.toml
 
 # Runtime persistence and fitted models (created locally; keep outside the repository)
+*.db
+*.sqlite
+*.db-shm
+*.db-wal
 data/*.db
 data/*.db-shm
 data/*.db-wal

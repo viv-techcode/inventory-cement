@@ -3,15 +3,31 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import Literal
+import re
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from inventory_app.inventory import local_today
 
 
+def _strip_markup(value: Any) -> Any:
+    if isinstance(value, str):
+        return re.sub(r"<[^>]*>", "", value).strip()
+    if isinstance(value, dict):
+        return {k: _strip_markup(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_strip_markup(v) for v in value]
+    return value
+
+
 class InputModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def strip_html_tags(cls, data: Any) -> Any:
+        return _strip_markup(data)
 
 
 class SiteCreate(InputModel):

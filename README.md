@@ -40,6 +40,13 @@ Open `http://127.0.0.1:8000/`. Set `INVENTORY_DB_URL` to choose another SQLite p
 
 The service is defined in `render.yaml`. Use the free plan for a baseline that rebuilds from committed code and ledger. App-entered records reset when the service sleeps, restarts or deploys. Persistent storage requires changing to an eligible paid service plan and enabling the disk configuration documented in `docs/RENDER_DEPLOYMENT.md`.
 
+## Known data limitations
+
+- **Intermittent site-level demand:** Due to localized purchase frequency by regional trade contractors, 81 of the 90 site/material weekly series exhibit intermittent (lumpy) demand where site-level holdout WAPE exceeds 100%. Aggregating demand to material level resolves this sparsity and achieves a 45.88% holdout WAPE.
+- **Master procurement structure:** The 440 receipt lines represent periodic call-off deliveries structured under 24 site/supplier master procurement agreements (1–6 SKU lines per order), alongside 4 planning orders illustrating the procurement approval lifecycle.
+- **Reference-based pricing:** Baseline prices are benchmarked to CPWD regional schedules and published Dehradun market references. Operating margins align with commercial targets (cement ~7%, steel ~6%, masonry/aggregates ~14%, chemicals/accessories ~26%) with natural dealer variance and a documented March 2025 steel margin squeeze.
+- **Ex-GST transaction ledger:** All ledger transactions are recorded ex-GST; tax presentation demonstrates statutory rate changes (such as the September 2025 cement GST rate adjustment) without full statutory GST tax invoice accounting.
+
 ## Project documents
 
 - `docs/DATASET_CARD.md`: ledger coverage, columns and quality checks.

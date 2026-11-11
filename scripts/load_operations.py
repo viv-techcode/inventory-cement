@@ -82,7 +82,15 @@ def ensure_ledger_baseline(database: Database, ledger_path: Path = config.SOURCE
             supplier = suppliers[first["counterparty"]]
             site = site_rows[first["site"]]
             receipt_day = min(date.fromisoformat(row["date"]) for row in rows)
-            order = PurchaseOrder(po_number=po_number, idempotency_key=f"baseline:{po_number}", supplier_id=supplier.id, site_id=site.id, status="Received", order_date=max(date(2024, 3, 1), receipt_day-timedelta(days=14)), expected_delivery_date=receipt_day, notes="Baseline purchasing record")
+            if po_number == "PO-0012":
+                expected_date = receipt_day - timedelta(days=14)
+                order_date = receipt_day - timedelta(days=28)
+                po_notes = "Baseline purchasing record; supplier delivery delayed by 14 days"
+            else:
+                expected_date = receipt_day
+                order_date = max(date(2024, 3, 1), receipt_day - timedelta(days=14))
+                po_notes = "Baseline purchasing record"
+            order = PurchaseOrder(po_number=po_number, idempotency_key=f"baseline:{po_number}", supplier_id=supplier.id, site_id=site.id, status="Received", order_date=order_date, expected_delivery_date=expected_date, notes=po_notes)
             session.add(order)
             session.flush()
             grouped = defaultdict(list)

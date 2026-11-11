@@ -201,11 +201,11 @@
   async function renderDashboard() {
     const sites = activeSites();
     const materials = activeMaterials();
-    const siteId = String(state.dashboardFilters?.site_id || selectedSiteId() || "");
-    const materialId = String(state.dashboardFilters?.material_id || selectedMaterialId() || "");
+    const siteId = String(state.dashboardFilters?.site_id ?? "");
+    const materialId = String(state.dashboardFilters?.material_id ?? "");
     const start = state.dashboardFilters?.start_date || monthStartString;
     const end = state.dashboardFilters?.end_date || todayString;
-    const query = encodeQuery({ site_id: siteId, material_id: materialId, start_date: start, end_date: end });
+    const query = encodeQuery({ site_id: siteId || undefined, material_id: materialId || undefined, start_date: start, end_date: end });
     const [data, leaderboard] = await Promise.all([
       api(`/api/dashboard?${query}`),
       api("/api/forecasts/leaderboard").catch((error) => ({ items: [], wins: [], error: error.message })),
@@ -223,8 +223,8 @@
     const topMaterialRows = (data.top_materials || []).map((item) => `<tr><td><strong>${esc(item.material)}</strong></td><td class="numeric">${qty(item.quantity,2)} ${esc(item.unit)}</td><td class="numeric">${money(item.revenue_inr)}</td><td class="numeric">${qty(item.sale_count,0)}</td></tr>`);
     pageView.innerHTML = `${heading("dashboard", "LIVE LEDGER + HISTORICAL CONTEXT")}
       <form class="page-toolbar" id="dashboard-filter-form"><div class="toolbar-fields">
-        <div class="field"><label for="dash-site">Site focus</label><select id="dash-site" name="site_id">${makeOptionGroups(sites, siteId, "identifier")}</select></div>
-        <div class="field"><label for="dash-material">Material focus</label><select id="dash-material" name="material_id">${makeOptionGroups(materials, materialId, "name")}</select></div>
+        <div class="field"><label for="dash-site">Site focus</label><select id="dash-site" name="site_id"><option value="">All sites (company-wide)</option>${makeOptionGroups(sites, siteId, "identifier")}</select></div>
+        <div class="field"><label for="dash-material">Material focus</label><select id="dash-material" name="material_id"><option value="">All materials (company-wide)</option>${makeOptionGroups(materials, materialId, "name")}</select></div>
         <div class="field"><label for="dash-start">Reporting from</label><input id="dash-start" type="date" name="start_date" value="${esc(start)}" max="${todayString}" required></div>
         <div class="field"><label for="dash-end">Reporting to</label><input id="dash-end" type="date" name="end_date" value="${esc(end)}" max="${todayString}" required></div>
       </div><button class="button primary" type="submit">Apply view</button></form>

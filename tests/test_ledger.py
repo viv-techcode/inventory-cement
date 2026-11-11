@@ -74,7 +74,7 @@ def test_clean_load_reconciles_and_is_idempotent(tmp_path):
             assert session.scalar(select(func.count(PlannerRun.id))) == 90
             latest_observation = session.scalar(select(func.max(HistoricalObservation.observation_datetime)))
             assert latest_observation.date() == AS_OF
-            assert session.scalar(select(func.sum(SalesRecord.revenue_inr))).quantize(Decimal("1")) == Decimal("134998970")
+            assert session.scalar(select(func.sum(SalesRecord.revenue_inr))).quantize(Decimal("1")) == Decimal("134999625")
             forecast_rows = operational_sales_history(session)
             assert len(forecast_rows) == 7932
         assert ensure_ledger_baseline(db, LEDGER) is None
@@ -129,12 +129,16 @@ def test_operational_pages_reconcile_to_baseline(tmp_path):
             quality = data_quality(session)
             assert dash["as_of_date"] == "2026-07-02"
             selected = dash["selection"]
-            expected_count = session.scalar(select(func.count(SalesRecord.id)).where(
-                SalesRecord.site_id == selected["site_id"], SalesRecord.material_id == selected["material_id"],
-                SalesRecord.sale_date >= date(2024, 4, 1), SalesRecord.sale_date <= AS_OF))
-            expected_revenue = session.scalar(select(func.sum(SalesRecord.revenue_inr)).where(
-                SalesRecord.site_id == selected["site_id"], SalesRecord.material_id == selected["material_id"],
-                SalesRecord.sale_date >= date(2024, 4, 1), SalesRecord.sale_date <= AS_OF))
+            sales_cnt_q = select(func.count(SalesRecord.id)).where(SalesRecord.sale_date >= date(2024, 4, 1), SalesRecord.sale_date <= AS_OF)
+            sales_rev_q = select(func.sum(SalesRecord.revenue_inr)).where(SalesRecord.sale_date >= date(2024, 4, 1), SalesRecord.sale_date <= AS_OF)
+            if selected["site_id"] is not None:
+                sales_cnt_q = sales_cnt_q.where(SalesRecord.site_id == selected["site_id"])
+                sales_rev_q = sales_rev_q.where(SalesRecord.site_id == selected["site_id"])
+            if selected["material_id"] is not None:
+                sales_cnt_q = sales_cnt_q.where(SalesRecord.material_id == selected["material_id"])
+                sales_rev_q = sales_rev_q.where(SalesRecord.material_id == selected["material_id"])
+            expected_count = session.scalar(sales_cnt_q)
+            expected_revenue = session.scalar(sales_rev_q)
             assert dash["summary"]["sales_count"] == expected_count
             assert Decimal(str(dash["summary"]["sales_revenue_inr"])).quantize(Decimal("0.01")) == Decimal(expected_revenue).quantize(Decimal("0.01"))
             assert inventory["total"] == 90
