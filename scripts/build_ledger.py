@@ -126,6 +126,7 @@ def build() -> dict[str, float | int | str]:
         by_pair[(sale["site"], sale["_sku"])].append(sale)
 
     po_numbers = [f"PO-{i:04d}" for i in range(1, 29)]
+    site_po_counts = [5, 5, 5, 5, 4, 4]
     pair_position = 0
     for site in SITES:
         for sku, (material, unit, anchor, margin, _) in enumerate(MATERIALS):
@@ -152,7 +153,8 @@ def build() -> dict[str, float | int | str]:
                 day = receipt_dates[rno]
                 receipt_qty = round(total_qty - opening - issued_receipts + 0.05, 2) if rno == nreceipts - 1 else round(split_qty, 2)
                 issued_receipts += receipt_qty
-                po_idx = min(27, int((day - START).days / ((END-START).days + 1) * 28))
+                site_index = SITES.index(site)
+                po_idx = sum(site_po_counts[:site_index]) + min(rno, site_po_counts[site_index] - 1)
                 events.append({"date": day, "site": site, "material": material, "unit": unit,
                                "quantity": receipt_qty, "unit_price": anchor * (1-margin),
                                "unit_cost": anchor * (1-margin), "document_reference": f"{po_numbers[po_idx]}/GRN-{po_idx+1:04d}-{site[:2].upper()}",
