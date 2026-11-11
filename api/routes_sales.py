@@ -93,7 +93,7 @@ def list_sales(
         "revenue_inr": float(revenue.quantize(Decimal("0.01"))),
         "cost_of_goods_sold_inr": float(cogs.quantize(Decimal("0.01"))) if cogs is not None else None,
         "gross_margin_inr": float(margin.quantize(Decimal("0.01"))) if margin is not None else None,
-        "margin_status": "Available" if complete else ("No sales in filter" if total == 0 else "Unavailable — one or more sales lack a fully recorded FIFO cost basis"),
+        "margin_status": "Available" if complete else ("No sales in filter" if total == 0 else "Unavailable — one or more sales lack a fully recorded weighted-average cost basis"),
         "costed_sales_count": len(costed),
         "margin_unavailable_sales_count": unavailable,
         "cost_basis_complete": complete,
@@ -130,3 +130,4 @@ def post_sale(body: SaleCreate, session: Session = Depends(get_session)):
         raise APIProblem(409 if conflict else 422, "sales_conflict" if conflict else "sales_validation", message) from exc
     except IntegrityError as exc:
         raise APIProblem(409, "sales_conflict", "This sale conflicts with an existing ledger or idempotency entry.") from exc
+

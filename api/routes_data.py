@@ -1,47 +1,62 @@
-"""Historical source inspection and idempotent CSV validation/import routes."""
+"""Inspection routes for the fixed baseline ledger and its load history."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from sqlalchemy import select
+from fastapi import APIRouter, Depends
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from api.dependencies import get_database, get_session
-from api.errors import APIProblem
 from inventory_app.data_quality import build_data_quality_report, history_to_frame
-from inventory_app.ingestion import EXPECTED_COLUMNS, import_dataframe, read_csv_bytes, sha256_bytes, validate_frame
-from inventory_app.models import ImportRun, RejectedRow
+from inventory_app.models import ImportRun, InventoryTransaction, Material, ProjectSite, RejectedRow
 
 router = APIRouter(prefix="/api", tags=["data"])
-MAX_UPLOAD_BYTES = 25 * 1024 * 1024
-
-
-def _read_upload(file_name: str, raw: bytes):
-    if not file_name.lower().endswith(".csv"):
-        raise APIProblem(415, "unsupported_file", "Upload a .csv file.")
-    if len(raw) > MAX_UPLOAD_BYTES:
-        raise APIProblem(413, "upload_too_large", f"CSV uploads are limited to {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
-    try:
-        frame = read_csv_bytes(raw)
-    except Exception as exc:
-        raise APIProblem(422, "csv_unreadable", f"CSV could not be read: {exc}") from exc
-    if frame.empty and len(frame.columns) == 0:
-        raise APIProblem(422, "csv_empty", "The uploaded CSV has no readable header or records.")
-    return frame
-
-
 @router.get("/data/quality")
 def data_quality(session: Session = Depends(get_session)):
+    baseline = session.execute(
+        select(InventoryTransaction, ProjectSite, Material)
+        .join(ProjectSite, InventoryTransaction.site_id == ProjectSite.id)
+        .join(Material, InventoryTransaction.material_id == Material.id)
+        .where(InventoryTransaction.source_tag == "baseline_ledger")
+        .order_by(InventoryTransaction.transaction_date, InventoryTransaction.id)
+    ).all()
+    type_counts = {}
+    sites, materials, units = set(), set(), {}
+    running_stock = {}
+    stock_reconciles = True
+    dates = []
+    for txn, site, material in baseline:
+        label = {"opening_balance":"opening_balance", "receipt":"purchase_receipt", "consumption":"sale", "adjustment":"adjustment"}[txn.transaction_type]
+        type_counts[label] = type_counts.get(label, 0) + 1
+        sites.add(site.identifier)
+        materials.add(material.name)
+        units.setdefault(material.name, set()).add(txn.unit)
+        dates.append(txn.transaction_date)
+        key = (site.identifier, material.name)
+        running_stock[key] = running_stock.get(key, 0.0) + (float(txn.quantity) if txn.transaction_type in {"opening_balance", "receipt", "adjustment"} else -float(txn.quantity))
+        if running_stock[key] < -0.0001:
+            stock_reconciles = False
     history = history_to_frame(session)
     report = build_data_quality_report(history)
+    report.update({
+        "row_count": len(baseline),
+        "site_count": len(sites),
+        "material_count": len(materials),
+        "date_min": min(dates).isoformat() if dates else None,
+        "date_max": max(dates).isoformat() if dates else None,
+        "event_type_counts": type_counts,
+        "unique_event_ids": len({txn.idempotency_key.removeprefix("baseline:") for txn, _, _ in baseline}),
+        "unit_consistency_pass": all(len(value) == 1 for value in units.values()),
+        "stock_reconciles_pass": stock_reconciles,
+        "entries_added_since_load": session.scalar(select(func.count(InventoryTransaction.id)).where(InventoryTransaction.source_tag != "baseline_ledger")) or 0,
+    })
     operational = session.scalars(select(ImportRun)).all()
-    rejected_count = sum(run.rejected_rows for run in operational)
     return {
-        "historical_source_label": "Construction Materials Dehradun Dataset",
-        "operational_transactions_excluded": True,
+        "historical_source_label": "Doon Ridge Materials Ledger",
+        "entries_since_load_excluded_from_training": True,
         "report": report,
         "import_run_count": len(operational),
-        "rejected_row_count": rejected_count,
-        "required_columns": list(EXPECTED_COLUMNS),
+        "rejected_row_count": sum(run.rejected_rows for run in operational),
+        "required_columns": ["event_id", "date", "site", "material", "unit", "quantity", "unit_price", "unit_cost", "document_reference", "counterparty", "event_type"],
     }
 
 
@@ -83,76 +98,3 @@ def data_import_history(session: Session = Depends(get_session)):
     }
 
 
-@router.post("/data/validate")
-async def validate_csv(file: UploadFile = File(...), session: Session = Depends(get_session)):
-    raw = await file.read()
-    frame = _read_upload(file.filename or "upload.csv", raw)
-    file_hash = sha256_bytes(raw)
-    valid, rejected, summary = validate_frame(frame)
-    prior = session.scalar(select(ImportRun).where(ImportRun.file_hash == file_hash))
-    valid_preview = [
-        {key: row.get(key) for key in EXPECTED_COLUMNS}
-        for row in valid[:20]
-    ]
-    rejected_preview = [
-        {
-            "row_number": row["row_number"],
-            "reason": row["reason"],
-            "raw": row.get("raw", {}),
-        }
-        for row in rejected[:50]
-    ]
-    return {
-        "file_name": file.filename,
-        "file_hash": file_hash,
-        "total_rows": int(len(frame)),
-        "column_count": int(len(frame.columns)),
-        "columns": [str(item) for item in frame.columns],
-        "schema_errors": summary.get("schema_errors", []),
-        "accepted_rows": len(valid),
-        "rejected_rows": len(rejected),
-        "validation_summary": summary,
-        "valid_preview": valid_preview,
-        "rejected_preview": rejected_preview,
-        "already_imported": prior is not None,
-        "prior_import_id": prior.id if prior is not None else None,
-        "historical_only": True,
-        "creates_operational_transactions": False,
-    }
-
-
-@router.post("/data/import", status_code=201)
-async def import_csv(
-    request: Request,
-    file: UploadFile = File(...),
-    confirm: bool = Form(default=False),
-):
-    if not confirm:
-        raise APIProblem(422, "confirmation_required", "Confirm the validated preview before importing.")
-    raw = await file.read()
-    frame = _read_upload(file.filename or "upload.csv", raw)
-    valid, rejected, summary = validate_frame(frame)
-    if summary.get("schema_errors"):
-        raise APIProblem(422, "schema_validation_failed", "The CSV schema does not match the required fields.", summary["schema_errors"])
-    database = get_database(request)
-    try:
-        result = import_dataframe(
-            database,
-            frame,
-            file_name=file.filename or "upload.csv",
-            file_bytes=raw,
-            source_kind="uploaded_csv",
-        )
-    except Exception as exc:
-        raise APIProblem(409, "import_conflict", f"Import failed without reporting a partial success: {exc}") from exc
-    return {
-        "run_id": result.run_id,
-        "file_hash": result.file_hash,
-        "total_rows": result.total_rows,
-        "accepted_rows": result.accepted_rows,
-        "rejected_rows": result.rejected_rows,
-        "duplicate_rows": result.duplicate_rows,
-        "duplicate_file": result.duplicate_file,
-        "message": result.message,
-        "creates_operational_transactions": False,
-    }

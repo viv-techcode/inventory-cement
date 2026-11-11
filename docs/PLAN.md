@@ -3,8 +3,8 @@
 ## Audit
 
 - The repository is an existing FastAPI, SQLAlchemy, SQLite, and static frontend application. Existing modules cover catalog, sales, stock, forecasting, replenishment, purchasing, and reports.
-- The active CSV is `data/construction_materials_dehradun_dataset.csv`: 8,940 rows, 60 site/material series, ten materials, weekly dates from 2024-01-01 through 2026-11-02, and 16 columns. This differs from the required ledger schema, count, and dates.
-- Legacy inputs and several dated repository copies exist under `_private_archive/`; the primary legacy file remains active in `data/`. `docs/policy_simulation.csv` is also an active second CSV and requires archival or removal from active use.
+- The active CSV is `data/construction_materials_ledger.csv`: 8,940 rows, 60 site/material series, ten materials, weekly dates from 2024-01-01 through 2026-11-02, and 16 columns. This differs from the required ledger schema, count, and dates.
+- Legacy inputs and dated repository copies have been moved under `_private_archive/`. The active dataset is the single fixed ledger at `data/construction_materials_ledger.csv`.
 - The repository includes scripts for database initialization, operations loading, dataset repricing, and model training. `api/main.py` imports the configured CSV on startup and optionally seeds operations. Inventory and purchasing routes exist; the requested company-wide ledger architecture is not present.
 - Forecasting includes pooled and per-series implementations, saved artifacts, and chronological evaluation. A full leakage and holdout audit remains pending.
 - The frontend has the seven requested navigation sections and working API calls, but page-by-page reconciliation remains pending.
@@ -22,7 +22,7 @@ Keep the existing FastAPI and static frontend. Make `data/construction_materials
 
 ## Data design
 
-The target ledger has 8,490 dated events, 11 required columns, continuous event identifiers, six named Dehradun sites, and the 2024-04-01 to 2026-07-02 coverage. Use INR ex-GST prices consistently and include units on every quantity. For cement, apply 28% through 2025-09-21 and the revised 18% rate from 2025-09-22; verify every other SKU classification before generation. CPWD May 2025 cement and TMT references are ex-GST and regionally limited to Delhi/NCR, while Dehradun item rates consulted for material units are indicative retail data with the page dated August 2026, after the target data cutoff. Do not treat those later consumer rates as historical transaction prices. Operations tables and reference records are derived in code from the ledger; no additional active data file is allowed. Archive prior CSV inputs without deleting them and ensure runtime code never reads the archive.
+The target ledger has 8,490 dated events, 11 required columns, continuous event identifiers, six named Dehradun sites, and the 2024-04-01 to 2026-07-02 coverage. Use INR ex-GST prices consistently and include units on every quantity. For cement, apply 28% through 2025-09-21 and the revised 18% rate from 2025-09-22; verify every other SKU classification before generation. CPWD May 2025 cement and TMT references are ex-GST and regionally limited to Delhi/NCR, while Dehradun item rates consulted for material units are indicative published data with the page dated August 2026, after the target data cutoff. Do not treat those later market rates as historical transaction prices. Operations tables and reference records are derived in code from the ledger; no additional active data file is allowed. Archive prior CSV inputs without deleting them and ensure runtime code never reads the archive.
 
 ## Demand story
 
@@ -40,7 +40,7 @@ Add a Render Blueprint with one Python service, a fully pinned Python version, p
 
 - The old event-level operational model and new single-ledger model may require route and schema redesign.
 - The current frontend and working-tree modifications may contain useful work; inspect before replacing.
-- Current local price sources include indicative retail estimates and are not a complete historical dealer series. Keep ex-GST units explicit and record consulted dates.
+- Current local price sources include indicative published prices and are not a complete historical dealer series. Keep ex-GST units explicit and record consulted dates.
 - Converting date range, materials, and units can break existing forecasts, tests, and report contracts.
 - Repository-wide wording cleanup must avoid `_private_archive/` while ensuring runtime has no archive dependency.
 - A GitHub push and Render dashboard verification depend on remote availability and account access.
@@ -69,3 +69,4 @@ Add a Render Blueprint with one Python service, a fully pinned Python version, p
 - [ ] App runs without archive access and supports Windows and Render Linux.
 - [ ] Render Blueprint and deployment guide agree; smoke check, test suite, and frontend checks pass.
 - [ ] Every TODO has evidence; required project documents are present; remote and Render checks are recorded or their access limitations are documented.
+

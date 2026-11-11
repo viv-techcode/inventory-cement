@@ -1,4 +1,4 @@
-"""Operational customer sales linked to the stock ledger and recorded-cost FIFO."""
+"""Operational customer sales linked to the stock ledger and recorded-cost weighted-average."""
 from __future__ import annotations
 
 from datetime import date
@@ -7,7 +7,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from inventory_app.costing import CostBasisError, fifo_issue_cost
+from inventory_app.costing import CostBasisError, weighted_average_issue_cost
 from inventory_app.inventory import DuplicateTransactionError, InventoryError, decimal_value, get_current_balance, local_today, record_inventory_transaction
 from inventory_app.models import Customer, Material, ProjectSite, SalesRecord
 
@@ -71,7 +71,7 @@ def create_sale(
     """Record a sale and its linked stock-consuming transaction atomically.
 
     A repeated key with the same payload returns the existing record; reusing a key
-    for changed content is rejected. Unknown FIFO cost remains unavailable rather
+    for changed content is rejected. Unknown weighted-average cost remains unavailable rather
     than being filled from historical CSV or material reference prices.
     """
     key = str(idempotency_key or "").strip()
@@ -128,7 +128,7 @@ def create_sale(
         raise SalesError("Select an active customer or leave the customer blank.")
 
     try:
-        cogs, unit_cost = fifo_issue_cost(
+        cogs, unit_cost = weighted_average_issue_cost(
             session,
             site_id=site_id,
             material_id=material_id,

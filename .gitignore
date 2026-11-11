@@ -11,7 +11,7 @@ htmlcov/
 .env
 .streamlit/secrets.toml
 
-# Runtime persistence and fitted models (created locally; do not bundle demo/test records)
+# Runtime persistence and fitted models (created locally; keep outside the repository)
 data/*.db
 data/*.db-shm
 data/*.db-wal
@@ -34,3 +34,4 @@ artifacts/models/*.tmp
 .idea/
 .vscode/
 *.log
+

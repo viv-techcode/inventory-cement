@@ -115,7 +115,7 @@ def sale_payload(
         "unit_cost_basis_inr": as_number(sale.unit_cost_basis_inr),
         "cost_of_goods_sold_inr": as_number(sale.cost_of_goods_sold_inr),
         "gross_margin_inr": as_number(sale.gross_margin_inr),
-        "margin_status": "Available" if sale.gross_margin_inr is not None else "Unavailable — no fully recorded FIFO cost basis",
+        "margin_status": "Available" if sale.gross_margin_inr is not None else "Unavailable — no fully recorded weighted-average cost basis",
         "reference": sale.reference,
         "notes": sale.notes,
         "inventory_transaction_id": sale.inventory_transaction_id,
@@ -209,3 +209,4 @@ def forecast_payload(
         "forecasts": forecasts,
         "holdouts": holdouts,
     }
+

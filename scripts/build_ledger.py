@@ -43,7 +43,7 @@ CUSTOMERS = [
     "Rishikesh Building Mart", "Uttara Home Projects", "Valley Stoneworks",
     "Capital Hardware House", "Sahastradhara Constructions", "Saraswati Buildline",
     "Pinecrest Developers", "Himalayan Trade Links", "Kedarnath Civil Supplies",
-    "Doon Retail Hardware", "Rajpur Road Builders", "North Gate Contractors",
+    "Doon Ridge Hardware", "Rajpur Road Builders", "North Gate Contractors",
     "Shivalik Home Works", "Doon Metro Traders", "Badripur Construction",
     "Clement Building Centre", "GMS Material House", "ISBT Trade Depot",
     "Jakhan Home Builders", "Paltan Hardware Centre", "Sahastradhara Supply Co",
@@ -139,7 +139,8 @@ def build() -> dict[str, float | int | str]:
                            "counterparty": "Opening balance", "event_type": "opening_balance"})
             nreceipts = 4 if pair_position % 9 == 0 else 5
             pair_position += 1
-            split_qty = (total_qty - opening) / nreceipts
+            closing_fraction = .01 + (pair_position % 8) * .007
+            split_qty = (total_qty * (1 + closing_fraction) - opening) / nreceipts
             thresholds = ([.03, .18, .38, .58, .78] if nreceipts == 5 else [.03, .23, .48, .73])
             ordered_sales = sorted(pair_sales, key=lambda row: row["date"])
             cumulative = []
@@ -151,7 +152,7 @@ def build() -> dict[str, float | int | str]:
             issued_receipts = 0.0
             for rno in range(nreceipts):
                 day = receipt_dates[rno]
-                receipt_qty = round(total_qty - opening - issued_receipts + 0.05, 2) if rno == nreceipts - 1 else round(split_qty, 2)
+                receipt_qty = round(total_qty * (1 + closing_fraction) - opening - issued_receipts + 0.05, 2) if rno == nreceipts - 1 else round(split_qty, 2)
                 issued_receipts += receipt_qty
                 site_index = SITES.index(site)
                 po_idx = sum(site_po_counts[:site_index]) + min(rno, site_po_counts[site_index] - 1)
@@ -220,6 +221,7 @@ def build() -> dict[str, float | int | str]:
 
 if __name__ == "__main__":
     print(build())
+
 
 
 

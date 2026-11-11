@@ -130,7 +130,7 @@ def prepare_series(
     material: str,
     frequency: str,
     *,
-    source_label: str = "Construction Materials Dehradun Dataset",
+    source_label: str = "Doon Ridge Materials Ledger",
 ) -> PreparedSeries:
     """Aggregate observations to calendar weeks/months, preserving missing periods as NaN."""
     if frequency not in {"weekly", "monthly"}:
@@ -415,7 +415,7 @@ def evaluate_model_suite(
     frequency: str,
     horizon_days: int = 30,
     model_names: list[str] | None = None,
-    source_label: str = "Construction Materials Dehradun Dataset",
+    source_label: str = "Doon Ridge Materials Ledger",
 ) -> dict[str, Any]:
     """Select by pre-holdout rolling-origin MAE; score separately on the final holdout."""
     series = prepare_series(history, site, material, frequency, source_label=source_label)
@@ -654,7 +654,7 @@ def load_saved_assessment(
     material: str,
     frequency: str,
     horizon_days: int,
-    source_label: str = "Construction Materials Dehradun Dataset",
+    source_label: str = "Doon Ridge Materials Ledger",
 ) -> dict[str, Any] | None:
     """Load a compatible model suite after restart without retraining."""
     try:
@@ -779,7 +779,7 @@ def data_hash_for_series(
     material: str,
     frequency: str,
     *,
-    source_label: str = "Construction Materials Dehradun Dataset",
+    source_label: str = "Doon Ridge Materials Ledger",
 ) -> str:
     return prepare_series(history, site, material, frequency, source_label=source_label).data_hash
 
@@ -792,12 +792,12 @@ def load_or_naive_assessment(
     material: str,
     frequency: str,
     horizon_days: int,
-    source_label: str = "Construction Materials Dehradun Dataset",
+    source_label: str = "Doon Ridge Materials Ledger",
 ) -> dict[str, Any]:
     """Load an offline-trained suite or produce a lightweight Naive fallback.
 
     Request handlers must not fit the tree or regression models. Those candidates
-    are trained by ``scripts.train_all`` and loaded from persisted artifacts.
+    are trained by ``scripts.train_models`` and loaded from persisted artifacts.
     """
     saved = load_saved_assessment(
         db,
@@ -820,6 +820,7 @@ def load_or_naive_assessment(
         source_label=source_label,
     )
     assessment["warnings"] = list(assessment["warnings"]) + [
-        "No compatible offline-trained model suite is available; the Naive baseline is used. Run python -m scripts.train_all to train candidate models."
+        "No compatible offline-trained model suite is available; the Naive baseline is used. Run python -m scripts.train_models to train candidate models."
     ]
     return assessment
+

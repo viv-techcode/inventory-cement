@@ -1,8 +1,4 @@
-"""Recorded-cost FIFO helpers for inventory valuation and sales margin.
-
-No catalogue benchmark or historical CSV price is used as operational cost. Stock
-without a recorded opening/receipt/positive-adjustment unit cost remains unvalued.
-"""
+"""Recorded moving weighted-average cost for inventory valuation and sales margin."""
 from __future__ import annotations
 
 from datetime import date
@@ -32,105 +28,77 @@ def _entries(session: Session, site_id: int, material_id: int, *, as_of: date | 
     return list(session.scalars(query.order_by(InventoryTransaction.transaction_date, InventoryTransaction.id)).all())
 
 
-def _take_fifo(layers: list[list[Decimal | None]], quantity: Decimal) -> tuple[Decimal, Decimal, Decimal]:
-    """Consume a quantity from mutable [remaining quantity, unit cost] FIFO layers."""
-    remaining = quantity
-    known_cost = Decimal("0")
-    unknown_quantity = Decimal("0")
-    index = 0
-    while remaining > 0 and index < len(layers):
-        layer_qty, unit_cost = layers[index]
-        assert layer_qty is not None
-        take = min(layer_qty, remaining)
-        if unit_cost is None:
-            unknown_quantity += take
-        else:
-            known_cost += take * unit_cost
-        layers[index][0] = layer_qty - take
-        remaining -= take
-        if layers[index][0] == 0:
-            index += 1
-        else:
-            break
-    layers[:] = [layer for layer in layers if layer[0] and layer[0] > 0]
-    return known_cost, unknown_quantity, remaining
-
-
-def _layers_after(entries: list[InventoryTransaction]) -> list[list[Decimal | None]]:
-    layers: list[list[Decimal | None]] = []
+def _weighted_state(entries: list[InventoryTransaction]) -> tuple[Decimal, Decimal, Decimal]:
+    """Return (quantity, known cost value, quantity with no recorded cost)."""
+    quantity = Decimal("0")
+    known_value = Decimal("0")
+    unknown = Decimal("0")
     for entry in entries:
-        quantity = Decimal(entry.quantity)
+        qty = Decimal(entry.quantity)
         if entry.transaction_type in {"opening_balance", "receipt"}:
-            layers.append([quantity, Decimal(entry.unit_cost_inr) if entry.unit_cost_inr is not None else None])
+            quantity += qty
+            if entry.unit_cost_inr is None:
+                unknown += qty
+            else:
+                known_value += qty * Decimal(entry.unit_cost_inr)
         elif entry.transaction_type == "adjustment":
-            if quantity > 0:
-                layers.append([quantity, Decimal(entry.unit_cost_inr) if entry.unit_cost_inr is not None else None])
-            elif quantity < 0:
-                _take_fifo(layers, -quantity)
+            if qty > 0:
+                quantity += qty
+                if entry.unit_cost_inr is None:
+                    unknown += qty
+                else:
+                    known_value += qty * Decimal(entry.unit_cost_inr)
+            elif qty < 0:
+                remove = -qty
+                if remove > quantity:
+                    raise CostBasisError("Adjustment exceeds available stock on its transaction date.")
+                if quantity:
+                    average_value = known_value / quantity
+                    known_value -= average_value * remove
+                    unknown = max(Decimal("0"), unknown - remove)
+                quantity -= remove
         elif entry.transaction_type == "consumption":
-            _take_fifo(layers, quantity)
-    return [layer for layer in layers if layer[0] and layer[0] > 0]
+            if qty > quantity:
+                raise CostBasisError("Sale quantity exceeds available stock on its transaction date.")
+            if quantity:
+                known_value -= (known_value / quantity) * qty
+                # Unknown-cost stock makes the blended issue cost unavailable until cleared.
+                unknown = max(Decimal("0"), unknown - min(unknown, qty))
+            quantity -= qty
+    return quantity, max(Decimal("0"), known_value), unknown
 
 
-def fifo_issue_cost(
-    session: Session,
-    *,
-    site_id: int,
-    material_id: int,
-    quantity: Decimal,
-    sale_date: date,
+def weighted_average_issue_cost(
+    session: Session, *, site_id: int, material_id: int, quantity: Decimal, sale_date: date,
 ) -> tuple[Decimal | None, Decimal | None]:
-    """Return (COGS, blended unit cost) only when every sold unit has recorded cost."""
+    """Return COGS and unit cost when all on-hand stock has recorded cost basis."""
     if quantity <= 0:
         raise CostBasisError("Sale quantity must be positive for cost allocation.")
     entries = _entries(session, site_id, material_id, as_of=sale_date)
-    layers = _layers_after(entries)
-    known_cost, unknown_qty, unfilled = _take_fifo(layers, quantity)
-    if unfilled > 0:
-        raise CostBasisError("Sale quantity exceeds the cost-layer stock available on the sale date.")
-    if unknown_qty > 0:
+    on_hand, known_value, unknown = _weighted_state(entries)
+    if quantity > on_hand:
+        raise CostBasisError("Sale quantity exceeds the stock available on the sale date.")
+    if unknown > 0:
         return None, None
-    cogs = known_cost.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
-    unit_cost = (known_cost / quantity).quantize(FOUR_PLACES, rounding=ROUND_HALF_UP)
-    return cogs, unit_cost
+    average = known_value / on_hand if on_hand else Decimal("0")
+    cogs = (average * quantity).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+    return cogs, average.quantize(FOUR_PLACES, rounding=ROUND_HALF_UP)
 
 
-def inventory_cost_summary(
-    session: Session,
-    *,
-    site_id: int,
-    material_id: int,
-    as_of: date,
-) -> dict[str, Decimal | str | None]:
-    """Return ledger quantity and recorded-cost coverage without estimating unknown stock."""
+def inventory_cost_summary(session: Session, *, site_id: int, material_id: int, as_of: date) -> dict[str, Decimal | str | None]:
+    """Return ledger stock and moving-average valuation without imputing missing costs."""
     balance = get_current_balance(session, site_id, material_id, as_of=as_of)
     if balance is None:
-        return {
-            "current_stock": None,
-            "stock_value_inr": None,
-            "known_cost_value_inr": None,
-            "costed_quantity": None,
-            "uncosted_quantity": None,
-            "cost_basis_status": "Not initialized",
-        }
-    layers = _layers_after(_entries(session, site_id, material_id, as_of=as_of))
-    costed_qty = sum((layer[0] for layer in layers if layer[1] is not None and layer[0] is not None), Decimal("0"))
-    uncosted_qty = sum((layer[0] for layer in layers if layer[1] is None and layer[0] is not None), Decimal("0"))
-    known_value = sum((layer[0] * layer[1] for layer in layers if layer[0] is not None and layer[1] is not None), Decimal("0"))
-    if uncosted_qty == 0:
-        status = "Fully costed"
-        total_value: Decimal | None = known_value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+        return {"current_stock": None, "stock_value_inr": None, "known_cost_value_inr": None,
+                "costed_quantity": None, "uncosted_quantity": None, "cost_basis_status": "Not initialized"}
+    quantity, value, unknown = _weighted_state(_entries(session, site_id, material_id, as_of=as_of))
+    costed_qty = max(Decimal("0"), quantity - unknown)
+    if unknown == 0:
+        status, total_value = "Fully costed", value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
     elif costed_qty == 0:
-        status = "No recorded cost basis"
-        total_value = None
+        status, total_value = "No recorded cost basis", None
     else:
-        status = "Partially costed"
-        total_value = None
-    return {
-        "current_stock": balance,
-        "stock_value_inr": total_value,
-        "known_cost_value_inr": known_value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP),
-        "costed_quantity": costed_qty,
-        "uncosted_quantity": uncosted_qty,
-        "cost_basis_status": status,
-    }
+        status, total_value = "Partially costed", None
+    return {"current_stock": balance, "stock_value_inr": total_value,
+            "known_cost_value_inr": value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP),
+            "costed_quantity": costed_qty, "uncosted_quantity": unknown, "cost_basis_status": status}
