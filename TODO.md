@@ -24,6 +24,7 @@
 8. [x] Run final local acceptance and record external-access limits.
    - Done when: automated reconciliation, ledger, model, content, and static checks pass; HTTP/browser and Render limitations are stated precisely.
    - Verified by: `python -m pytest -q`, `compileall`, `node --check`, database scan, direct `_self_check`, and `docs/VERIFICATION_LOG.md`.
-9. [ ] Commit finished milestones and push `master`.
+9. [ ] Push the finished commits to `origin/master`.
    - Done when: intended work is committed and `origin/master` matches local `master`.
-   - Verified by: `git status --short --branch` and `git rev-parse HEAD origin/master`.
+   - Verified by: `git push origin master` returned HTTP 403; `git rev-parse HEAD origin/master` confirms local `master` is six commits ahead after recording this access failure.
+   - Blocker: the configured GitHub identity lacks write permission to the configured repository.
