@@ -59,7 +59,7 @@
    Safety Stock = Z × standard deviation of demand × sqrt(Lead Time), where Z = 1.645 for a 95% cycle service level.
 
 4. **Why use WAPE and MASE instead of MAPE?**
-   Intermittent construction demand often has zero sales in a given week. Mean Absolute Percentage Error (MAPE) divides by actual volume, causing division by zero or explosive values. Weighted Absolute Percentage Error (WAPE) scales total absolute error by total actual demand. Mean Absolute Scaled Error (MASE) scales errors against an in-sample naive baseline.
+   Intermittent construction demand often has zero sales in a given week. Mean Absolute Percentage Error (MAPE) divides by actual volume, causing division by zero or explosive values. Weighted Absolute Percentage Error (WAPE) scales total absolute error by total actual demand. Mean Absolute Scaled Error (MASE) scales errors against an in-training naive baseline.
 
 5. **How are forecast prediction intervals generated?**
    Intervals are constructed empirically using the standard deviation and quantile spread of historical validation residuals, guaranteeing realistic uncertainty bands rather than theoretical normal assumptions.
