@@ -13,3 +13,4 @@
 - 2026-11-11 — Ledger structure: Python CSV audit confirmed 8,490 rows, 11 columns, IDs `L000001`–`L008490`, 6 sites, 15 materials, and event counts `opening_balance=90`, `sale=7932`, `purchase_receipt=440`, `adjustment=28`.
 - 2026-11-11 — Ledger financial profile: sales sum INR 134,998,970 after CSV rounding, equivalent to INR 5.99995 crore annualized over 27 months; monthly revenue ranges INR 2.4–66.4 lakh with visible monsoon and winter troughs and pre-monsoon/March peaks.
 - 2026-11-11 — Ledger PO link audit: `python -m scripts.build_ledger`; output retained 8,490 rows and confirmed 28 distinct PO references on receipt lines. Final SHA-256 `01D66D61AEFFC14E591817B63313173AFB93365FC86C95BBA11ADBA5B9311C89`.
+- 2026-11-11 — PO design adjustment: receipt references now cover 24 historical orders, leaving four additional deterministic PO records for open, approved, and cancelled statuses during database loading.

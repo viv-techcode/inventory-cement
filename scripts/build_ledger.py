@@ -126,7 +126,7 @@ def build() -> dict[str, float | int | str]:
         by_pair[(sale["site"], sale["_sku"])].append(sale)
 
     po_numbers = [f"PO-{i:04d}" for i in range(1, 29)]
-    site_po_counts = [5, 5, 5, 5, 4, 4]
+    site_po_counts = [4, 4, 4, 4, 4, 4]
     pair_position = 0
     for site in SITES:
         for sku, (material, unit, anchor, margin, _) in enumerate(MATERIALS):
@@ -158,7 +158,7 @@ def build() -> dict[str, float | int | str]:
                 events.append({"date": day, "site": site, "material": material, "unit": unit,
                                "quantity": receipt_qty, "unit_price": anchor * (1-margin),
                                "unit_cost": anchor * (1-margin), "document_reference": f"{po_numbers[po_idx]}/GRN-{po_idx+1:04d}-{site[:2].upper()}",
-                               "counterparty": SUPPLIERS[(sku + rno) % len(SUPPLIERS)], "event_type": "purchase_receipt"})
+                               "counterparty": SUPPLIERS[po_idx % len(SUPPLIERS)], "event_type": "purchase_receipt"})
 
     # Allocate a balanced mix of stock corrections without affecting aggregate stock.
     pair_keys = list(by_pair)
