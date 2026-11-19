@@ -192,7 +192,7 @@ def main() -> int:
         }
     metrics_path = config.PROJECT_ROOT / "docs" / "model_metrics.json"
     metrics_path.write_text(json.dumps({
-        "model_version": "1.4",
+        "model_version": MODEL_VERSION,
         "dataset_sha256": __import__("hashlib").sha256(config.SOURCE_CSV.read_bytes()).hexdigest(),
         "series_count": len(pairs),
         "model_summaries": summaries,

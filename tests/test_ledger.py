@@ -20,12 +20,13 @@ from inventory_app.costing import weighted_average_issue_cost
 from inventory_app.data_quality import history_to_frame
 from inventory_app.forecasting import load_or_naive_assessment
 from inventory_app.inventory import get_current_balance
+from inventory_app.reorder import save_reorder_rule, stock_reorder_status
 from inventory_app.models import (
     HistoricalObservation, InventoryTransaction, Material, PlannerRun, ProjectSite, PurchaseOrderLine,
     SalesRecord, Supplier,
 )
 from inventory_app.procurement import (
-    create_purchase_order, post_receipt, transition_purchase_order,
+    DuplicateTransactionError, create_purchase_order, post_receipt, transition_purchase_order,
 )
 from inventory_app.sales import create_sale
 from scripts.load_operations import ensure_baseline_planner_history, ensure_ledger_baseline
@@ -115,6 +116,52 @@ def test_post_load_sale_and_receipt_update_stock_without_retraining(tmp_path):
                 purchase_order_line_id=line.id, quantity=Decimal("2"), unit=material.unit,
                 receipt_date=AS_OF)
             assert get_current_balance(session, site.id, material.id, as_of=AS_OF) == before_receipt + Decimal("2")
+    finally:
+        db.dispose()
+
+
+def test_complete_sale_reorder_purchase_receipt_workflow(tmp_path):
+    """Exercise the reversible inventory workflow used in the presentation."""
+    db = fresh_database(tmp_path / "walkthrough-workflow.sqlite")
+    try:
+        with db.session() as session, session.begin():
+            site, material, before = next(
+                (site, material, balance)
+                for site in session.scalars(select(ProjectSite).order_by(ProjectSite.id))
+                for material in session.scalars(select(Material).order_by(Material.id))
+                if (balance := get_current_balance(session, site.id, material.id, as_of=AS_OF)) is not None
+                and balance > Decimal("3")
+            )
+            save_reorder_rule(session, site_id=site.id, material_id=material.id,
+                              unit=material.unit, reorder_point_qty=before-Decimal("1"))
+            sale, _ = create_sale(session, idempotency_key="WALKTHROUGH-SALE-1", site_id=site.id,
+                material_id=material.id, customer_id=None, quantity=Decimal("1"), unit=material.unit,
+                unit_sale_price_inr=Decimal("1000"), sale_date=AS_OF, reference="WALKTHROUGH-INV-1")
+            after_sale = get_current_balance(session, site.id, material.id, as_of=AS_OF)
+            assert after_sale == before - Decimal("1")
+            assert stock_reorder_status(session, site.id, material.id, as_of=AS_OF)["alert"]
+
+            supplier = session.scalar(select(Supplier).order_by(Supplier.id))
+            po = create_purchase_order(session, idempotency_key="WALKTHROUGH-PO-1", supplier_id=supplier.id,
+                site_id=site.id, order_date=AS_OF, expected_delivery_date=AS_OF,
+                lines=[{"material_id": material.id, "quantity": Decimal("2"),
+                        "unit": material.unit, "unit_price_inr": Decimal("100")}])
+            transition_purchase_order(session, po.id, "Pending approval")
+            transition_purchase_order(session, po.id, "Approved")
+            line = session.scalar(select(PurchaseOrderLine).where(PurchaseOrderLine.purchase_order_id == po.id))
+            post_receipt(session, idempotency_key="WALKTHROUGH-GRN-1", receipt_reference="WALKTHROUGH-GRN-1",
+                purchase_order_line_id=line.id, quantity=Decimal("2"), unit=material.unit, receipt_date=AS_OF)
+            assert get_current_balance(session, site.id, material.id, as_of=AS_OF) == after_sale + Decimal("2")
+            assert po.status == "Received"
+            try:
+                post_receipt(session, idempotency_key="WALKTHROUGH-GRN-1", receipt_reference="WALKTHROUGH-GRN-1",
+                    purchase_order_line_id=line.id, quantity=Decimal("2"), unit=material.unit, receipt_date=AS_OF)
+            except DuplicateTransactionError:
+                pass
+            else:
+                raise AssertionError("Duplicate receipt was accepted")
+            assert get_current_balance(session, site.id, material.id, as_of=AS_OF) == after_sale + Decimal("2")
+            assert sale.id is not None
     finally:
         db.dispose()
 

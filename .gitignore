@@ -42,3 +42,33 @@ artifacts/models/*.tmp
 
 # Retired local model binaries
 /_private_archive/retired_model_artifacts/
+
+# Local AI/task workflow and generated review notes
+/skill-observations/
+/cross-cutting-principles.md
+/.agents/
+/.codex/
+/AGENTS.md
+
+# Retired snapshots and one-off project explanation builder
+/_private_archive/
+/_build_project_explained_once.py
+
+# Local reports, exports, and generated experiment outputs
+/AUDIT.md
+/DEMO_SCRIPT.md
+/output/
+/results/
+
+# Planning and agent workflow notes, not application source
+/docs/BRAINSTORM.md
+/docs/CHECKPOINTS.md
+/docs/DECISIONS.md
+/docs/VERIFICATION_LOG.md
+/docs/model_metrics.json
+
+# Task-observer bundle files wherever they are stored
+**/skill-observations/
+**/task-observer/
+**/task-observer.*
+**/cross-cutting-principles.md

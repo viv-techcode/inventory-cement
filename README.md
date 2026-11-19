@@ -1,57 +1,49 @@
 # Doon Ridge Materials
 
-Construction-material inventory, purchasing, sales and weekly demand forecasting for six Dehradun locations. The baseline ledger covers 1 April 2024 through 2 July 2026.
+Construction-material inventory, purchasing, sales and weekly demand forecasting for six Dehradun locations. The committed ledger covers 1 April 2024 through 2 July 2026.
 
-## Architecture
+## How it works
 
-FastAPI serves the REST API and static frontend. SQLAlchemy stores the loaded ledger events and operational records in SQLite. On an empty database, startup reconstructs the baseline from `data/construction_materials_ledger.csv` and deterministic loader logic. App-entered sales and receipts are stored in the database and excluded from model training.
+FastAPI serves the REST API and static frontend. SQLAlchemy stores operational records in SQLite. On startup, an empty database is rebuilt from `data/construction_materials_ledger.csv`. Sales and purchase receipts entered in the app are stored in the database. They are not added to the historical training ledger.
 
-## Data model
-
-The committed ledger is the only active CSV. It records opening balances, sales, purchase receipts and stock adjustments with continuous event IDs, units, prices, costs and document references. Database tables hold material and site masters, customers, suppliers, purchase orders, receipt details, reorder parameters, derived weekly observations and post-load entries. No database file is committed.
+The ledger is the canonical event source for opening balances, sales, purchase receipts and adjustments. Inventory value and cost of goods sold use recorded weighted-average acquisition cost. Reorder calculations use configured lead time, safety stock and order constraints.
 
 ## Forecasting
 
-Weekly quantity is the target. Model evaluation uses chronological training and holdout periods, past-only features, expanding-window validation and MAE, RMSE, WAPE and MASE. Committed model metrics and aligned holdout/future predictions are in `docs/model_metrics.json`; the deployed app serves those outputs without fitting models at startup. Forecasts are fit directly for each of the 90 site/material weekly series, each with more than two years of weekly periods. Three expanding-window folds select the model; the final 16 weeks remain untouched for holdout reporting. See `docs/PLAN.md` for the accepted design and current completion state.
+Run `python -m ml.run_experiment` to create `results/model_results.csv` and `results/model_summary.md`. The experiment compares naive last value, a four-week moving average, seasonal naive, Linear Regression and XGBoost. It uses a chronological validation period to select a model separately at site/material and material aggregate levels, then scores the final untouched 16 weeks. It reports WAPE, MAE, RMSE and bias. Zero-demand share and average interval between demand weeks are included to make intermittency visible.
 
-## Inventory calculations
+On the saved holdout, the selected four-week moving-average baseline has 42.82% material-level WAPE and 87.82% site/material-level WAPE. These are retrospective comparisons on this ledger. Sparse site/material demand can produce large errors, and aggregation changes the forecast target. Results are not reliable ordering advice. The app includes per-series comparisons and a moving-average baseline in model selection.
 
-- Reorder point = expected demand during supplier lead time + safety stock.
-- Safety stock = z × weekly demand standard deviation × √(lead time in weeks).
-- Inventory value and cost of goods sold use recorded weighted-average acquisition cost.
-- ABC class is based on cumulative annualized sales value.
-- Prices in the ledger are INR per unit, ex-GST; tax presentation uses the invoice date and SKU classification.
+## Scope and limitations
+
+This system demonstrates inventory and purchasing workflows, including sales, receipts and stock checks.
+Forecasts and reorder suggestions depend on the available history, configured stock rules and stated assumptions.
+The data covers a fixed historical period and a limited set of sites and materials.
+Aggregate demand can hide differences between individual sites.
+Forecast errors describe this holdout and do not guarantee future results.
+Users should review stock, lead times and supplier conditions before ordering.
 
 ## Run locally
 
-Python 3.11.11 is the pinned runtime.
+Python 3.11 is required.
 
 ```powershell
 py -3.11 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m scripts.reset_database
-uvicorn api.main:app --host 0.0.0.0 --port 8000
+uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000/`. Set `INVENTORY_DB_URL` to choose another SQLite path. `AS_OF_DATE` defaults to `2026-07-02`.
+Open `http://127.0.0.1:8000/`. Set `INVENTORY_DB_URL` to choose a different SQLite database. `AS_OF_DATE` defaults to the latest ledger date. To restore the baseline for a repeatable walkthrough, stop the server and run `python -m scripts.reset_database`.
 
-## Render
+Run the experiment and number check with:
 
-The service is defined in `render.yaml`. Use the free plan for a baseline that rebuilds from committed code and ledger. App-entered records reset when the service sleeps, restarts or deploys. Persistent storage requires changing to an eligible paid service plan and enabling the disk configuration documented in `docs/RENDER_DEPLOYMENT.md`.
+```powershell
+python -m ml.run_experiment
+python -m ml.check_numbers
+```
 
-## Known data limitations
+The main requirements file includes XGBoost so the documented experiment can run immediately after setup. The app still has built-in baselines and scikit-learn models if the optional tree model is unavailable at runtime.
 
-- **Intermittent site-level demand:** Due to localized purchase frequency by regional trade contractors, 81 of the 90 site/material weekly series exhibit intermittent (lumpy) demand where site-level holdout WAPE exceeds 100%. Aggregating demand to material level resolves this sparsity and achieves a 45.88% holdout WAPE.
-- **Master procurement structure:** The 440 receipt lines represent periodic call-off deliveries structured under 24 site/supplier master procurement agreements (1–6 SKU lines per order), alongside 4 planning orders illustrating the procurement approval lifecycle.
-- **Reference-based pricing:** Baseline prices are benchmarked to CPWD regional schedules and published Dehradun market references. Operating margins align with commercial targets (cement ~7%, steel ~6%, masonry/aggregates ~14%, chemicals/accessories ~26%) with natural dealer variance and a documented March 2025 steel margin squeeze.
-- **Ex-GST transaction ledger:** All ledger transactions are recorded ex-GST; tax presentation demonstrates statutory rate changes (such as the September 2025 cement GST rate adjustment) without full statutory GST tax invoice accounting.
-
-## Project documents
-
-- `docs/DATASET_CARD.md`: ledger coverage, columns and quality checks.
-- `docs/PRESENTATION_GUIDE.md`: feature mapping, walkthrough and viva prompts.
-- `docs/PLAN.md`: architecture, forecasting and acceptance checklist.
-- `docs/DECISIONS.md`: design decisions and consulted sources.
-- `docs/VERIFICATION_LOG.md`: commands and observed results.
-- `docs/PRICE_REFERENCES.md`: material price ranges and reference URLs.
+Run the automated checks with `python -m pytest -q`. Follow [DEMO_SCRIPT.md](DEMO_SCRIPT.md) for the complete sale-to-receipt walkthrough. See [docs/PRESENTATION_GUIDE.md](docs/PRESENTATION_GUIDE.md) for the feature map and viva questions.

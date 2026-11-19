@@ -25,10 +25,10 @@ from inventory_app.database import Database
 from inventory_app.models import ForecastArtifact, Material, ProjectSite, utc_now
 from inventory_app.pooled_forecasting import build_pooled_frame as pooled_feature_frame, inverse_target_transform
 
-MODEL_VERSION = "1.4"
+MODEL_VERSION = "1.5"
 FEATURE_CONFIG = {"lags": [1, 2, 3, 4], "rolling_window": 4, "features_use_past_only": True}
 POOLED_MODEL_VERSION = "2.0-global"
-BASE_MODELS = ("Naive", "Seasonal Naive", "Multiple Linear Regression", "Random Forest")
+BASE_MODELS = ("Naive", "Moving Average", "Seasonal Naive", "Multiple Linear Regression", "Random Forest")
 # The supplied series are observed about every 6–7 days; allow at most one
 # expected weekly interval before current lead-time demand is considered stale.
 MAX_REPLENISHMENT_SOURCE_AGE_DAYS = 7
@@ -278,6 +278,9 @@ def _predict_next(name: str, context: list[float], estimator: Any, seasonal_peri
     fallback = _last_valid(context)
     if name == "Naive":
         return max(0.0, fallback)
+    if name == "Moving Average":
+        recent = np.asarray(context[-4:], dtype=float)
+        return max(0.0, float(np.mean(recent))) if len(recent) else 0.0
     if name == "Seasonal Naive":
         candidate = len(context) - seasonal_period
         if candidate >= 0 and np.isfinite(context[candidate]):
@@ -301,7 +304,7 @@ def _recursive_predict(name: str, initial_values: np.ndarray, estimator: Any, st
 
 
 def _fit_full_estimator(name: str, values: np.ndarray):
-    if name in {"Naive", "Seasonal Naive"}:
+    if name in {"Naive", "Moving Average", "Seasonal Naive"}:
         return None
     x_all, y_all = training_matrix(values)
     if len(y_all) < 8:
